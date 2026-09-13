@@ -147,6 +147,9 @@ jobs:
             https://ftp.gnu.org/gnu/m4/m4-1.4.16.tar.gz
           seed autoconf-2.68.tar.bz2 864d785215aa60d627c91fcb21b05b07 \
             https://ftp.gnu.org/gnu/autoconf/autoconf-2.68.tar.bz2
+          seed pseudo-1.2.tar.bz2 a2819084bab7e991f06626d02cf55048 \
+            https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2 \
+            https://sources.openembedded.org/pseudo-1.2.tar.bz2
           echo "===== FULL BUILD: mdm-image ====="
           BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
           echo "mdm-image exit=$?"
