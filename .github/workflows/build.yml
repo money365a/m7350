@@ -36,7 +36,6 @@ jobs:
           set +e
           URL1="https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz"
           URL2="https://archive.org/download/tp-link-gpl-source/Home/Mobile%20Wi-Fi/M7350/M7350v3_en_gpl.tar.gz"
-          echo "Trying URL1: $URL1"
           wget --tries=2 -c "$URL1" -O M7350v3_en_gpl.tar.gz
           SIZE1=$(stat -c %s M7350v3_en_gpl.tar.gz 2>/dev/null || echo 0)
           echo "URL1 size=$SIZE1"
@@ -57,12 +56,11 @@ jobs:
           set +e
           mkdir -p src
           tar -xzf M7350v3_en_gpl.tar.gz -C src 2> tar-errors.txt
-          echo "tar exit=$? (stderr στο tar-errors.txt)"
-          tail -5 tar-errors.txt
+          echo "tar exit=$?"
           echo "extracted files: $(find src -type f | wc -l)"
           du -sh src
 
-      - name: Build Python 2.7 (Yocto-era SDKs require it)
+      - name: Build Python 2.7 (Yocto-era SDK requires it)
         continue-on-error: true
         run: |
           set +e
@@ -70,7 +68,6 @@ jobs:
           tar -xzf Python-2.7.18.tgz
           cd Python-2.7.18
           ./configure --prefix=/opt/py2 --with-ensurepip=no > ../py2-configure.log 2>&1
-          echo "configure exit=$?"
           make -j4 -s > ../py2-make.log 2>&1
           echo "make exit=$?"
           sudo make install > ../py2-install.log 2>&1
@@ -78,92 +75,65 @@ jobs:
           sudo ln -sf /opt/py2/bin/python2 /opt/py2/bin/python
           /opt/py2/bin/python --version
 
-      - name: Deep recon (Yocto layout)
+      - name: Dump TP-Link's own build config
         continue-on-error: true
         run: |
           set +e
           {
-            echo "===== SIZES ====="
-            du -sh src/apps_proc/* 2>/dev/null | sort -h
-            echo "===== YOCTO INIT SCRIPTS ====="
-            find src -type f \( -name "oe-init-build-env" -o -name "envsetup.sh" \) | head
-            echo "===== BUILD-NAMED FILES (excluding recipes) ====="
-            find src -type f -iname "*build*" | grep -vE "recipes|packages|Documentation|tests?/" | head -60
-            echo "===== ALL SHELL SCRIPTS (first 150) ====="
-            find src -type f -name "*.sh" | sort | head -150
-            echo "===== LAYER CONFS ====="
-            find src -name "layer.conf" | head -40
-            echo "===== MACHINE CONFS ====="
-            find src -path "*conf/machine*" -name "*.conf" | head -40
-            echo "===== DISTRO CONFS ====="
-            find src -path "*conf/distro*" -name "*.conf" | head -20
-            echo "===== IMAGE-LIKE RECIPES ====="
-            find src -name "*.bb" | grep -iE "image|mifi|m7350|tp" | head -50
-            echo "===== PREBUILT ARCHIVES/IMAGES INSIDE ====="
-            find src -type f \( -name "*.tar.*" -o -name "*.bin" -o -name "*.img" -o -name "*.ext4*" \) | head -40
-            echo "===== oe-core top ====="
-            ls src/apps_proc/oe-core
-            echo "===== base top ====="
-            ls src/apps_proc/base | head -40
-            echo "===== tp-opensource top ====="
-            ls src/apps_proc/tp-opensource | head -40
-            echo "===== webserver top ====="
-            ls src/apps_proc/webserver | head -20
-            echo "===== INIT SCRIPT CONTENT ====="
-            INIT=$(find src -name "oe-init-build-env" | head -1)
-            [ -n "$INIT" ] && head -60 "$INIT"
-          } | tee recon2.txt
+            echo "===== oe-core/build/conf contents ====="
+            ls -la src/apps_proc/oe-core/build/conf/ 2>/dev/null
+            for f in set_bb_env.sh local.conf bblayers.conf site.conf auto.conf; do
+              if [ -f "src/apps_proc/oe-core/build/conf/$f" ]; then
+                echo "===== $f ====="
+                cat "src/apps_proc/oe-core/build/conf/$f"
+              fi
+            done
+            echo "===== mdm9625.conf (machine) ====="
+            cat src/apps_proc/oe-core/meta-msm/conf/machine/mdm9625.conf
+            echo "===== msm.conf (distro) ====="
+            cat src/apps_proc/oe-core/meta-msm/conf/distro/msm.conf
+            echo "===== mdm-image.bb ====="
+            cat src/apps_proc/oe-core/meta-msm/recipes/images/mdm-image.bb
+            echo "===== mdm-perf-image.bb ====="
+            cat src/apps_proc/oe-core/meta-msm/recipes/images/mdm-perf-image.bb
+            echo "===== downloads count ====="
+            ls src/apps_proc/oe-core/build/downloads 2>/dev/null | wc -l
+          } | tee tp-conf.txt
 
-      - name: Yocto environment probe
+      - name: Full build attempt (bitbake mdm-image)
         continue-on-error: true
         run: |
           set +e
           export PATH=/opt/py2/bin:$PATH
-          echo "python is: $(python --version 2>&1)"
-          cd src/apps_proc
-          INIT=$(find oe-core -maxdepth 1 -name "oe-init-build-env" | head -1)
-          if [ -z "$INIT" ]; then
-            echo "NO oe-init-build-env FOUND" | tee ../../yocto.log
-            exit 0
-          fi
-          echo "Using init: $INIT"
-          . ./$INIT ../../build > ../../yocto-init.log 2>&1
+          export WSDIR="$PWD"
+          echo "python: $(python --version 2>&1), cores: $(nproc)"
+          cd src/apps_proc/oe-core
+          . ./oe-init-build-env build > "$WSDIR/init.log" 2>&1
           echo "init exit=$?"
-          tail -20 ../../yocto-init.log
-          # βρες όλα τα layer.conf (υπάρχοντα layers του δέντρου)
-          echo "===== LAYERS DETECTED =====" | tee -a ../../yocto.log
-          find .. -name "layer.conf" | while read -r lc; do
-            echo "layer: $(dirname $(dirname $lc))" | tee -a ../../yocto.log
-          done
-          echo "===== MACHINE CANDIDATES =====" | tee -a ../../yocto.log
-          find .. -path "*conf/machine*" -name "*.conf" | tee -a ../../yocto.log
-          echo "===== IMAGE RECIPES =====" | tee -a ../../yocto.log
-          find .. -name "*.bb" | grep -iE "image" | tee -a ../../yocto.log
-          echo "===== conf/bblayers.conf =====" | tee -a ../../yocto.log
-          cat conf/bblayers.conf 2>/dev/null | tee -a ../../yocto.log
-          echo "===== conf/local.conf (defaults) =====" | tee -a ../../yocto.log
-          head -40 conf/local.conf 2>/dev/null | tee -a ../../yocto.log
-          # Δοκιμαστικό parse (γρήγορο) — όχι πλήρες build ακόμα
-          echo "===== BITBAKE PARSE PROBE =====" | tee -a ../../yocto.log
-          bitbake -p > ../../bitbake-parse.log 2>&1
-          echo "bitbake -p exit=$?"
-          tail -30 ../../bitbake-parse.log | tee -a ../../yocto.log
+          # αν το target βρεθεί στις ρυθμίσεις της TP-Link, χρησιμοποίησέ το
+          TARGET=$(grep -rhoE "bitbake [a-zA-Z0-9-]+" "$BUILDDIR/conf/" 2>/dev/null | head -1 | awk '{print $2}')
+          if [ -z "$TARGET" ] || ! ls meta-msm/recipes/images/ | grep -q "^$TARGET"; then
+            TARGET=mdm-image
+          fi
+          echo "BUILDING TARGET: $TARGET"
+          BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12600 bitbake "$TARGET" > "$WSDIR/bitbake-build.log" 2>&1
+          RC=$?
+          echo "bitbake exit=$RC"
+          tail -60 "$WSDIR/bitbake-build.log"
+          echo "===== DEPLOYED IMAGES ====="
+          find "$BUILDDIR/tmp-eglibc/deploy/images" -type f 2>/dev/null | head -40
           exit 0
 
-      - name: Upload logs
+      - name: Upload logs and images
         uses: actions/upload-artifact@v4
         with:
           name: m7350-v3-build-output
           path: |
-            recon.txt
-            recon2.txt
-            yocto.log
-            yocto-init.log
-            bitbake-parse.log
+            tp-conf.txt
+            init.log
+            bitbake-build.log
             py2-*.log
             tar-errors.txt
-            build/conf/**
-            src/**/*.bin
-            src/**/*.img
+            src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
