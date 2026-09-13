@@ -61,6 +61,9 @@ jobs:
           # samba recipe: DDR_SIZE δεν ορίζεται πουθενά στο GPL — neutralize η έκφραση
           sed -i 's|^PRODUCT_MEMORY .*|PRODUCT_MEMORY = ""|' src/apps_proc/oe-core/meta-msm/recipes/samba/samba_3.6.22.bb
           grep -n "^PRODUCT_MEMORY" src/apps_proc/oe-core/meta-msm/recipes/samba/samba_3.6.22.bb
+          # site.conf: σβήσε το νεκρό PREMIRRORS μπλοκ (γραμμές 42-52)
+          sed -i '42,52d' src/apps_proc/oe-core/meta-msm/conf/site.conf
+          grep -c "PREMIRRORS" src/apps_proc/oe-core/meta-msm/conf/site.conf || echo "PREMIRRORS μπλοκ: καθαρό"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
@@ -123,6 +126,27 @@ jobs:
             exit 0
           fi
           tail -10 "$WSDIR/parse.log"
+          echo "===== PRE-SEED MISSING DOWNLOADS ====="
+          seed() {
+            f="downloads/$1"; shift; want="$1"; shift
+            [ -s "$f" ] && { echo "OK (υπάρχει): $f"; return 0; }
+            for u in "$@"; do
+              wget -q --timeout=40 --tries=2 "$u" -O "$f" 2>/dev/null
+              if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
+                echo "SEEDED: $f  <-  $u"; return 0
+              fi
+            done
+            echo "SEED FAILED: $f"; rm -f "$f"; return 1
+          }
+          seed quilt-0.50.tar.gz ff5e1e041363c3af3c8fda4b968c9d1d \
+            https://download.savannah.gnu.org/releases/quilt/quilt-0.50.tar.gz \
+            http://download.savannah.nongnu.org/releases/quilt/quilt-0.50.tar.gz
+          seed gnu-config-yocto-20111111.tgz 30be385c919a25cd9522205ef49e5328 \
+            https://downloads.yoctoproject.org/releases/gnu-config/gnu-config-yocto-20111111.tgz
+          seed m4-1.4.16.tar.gz a5dfb4f2b7370e9d34293d23fd09b280 \
+            https://ftp.gnu.org/gnu/m4/m4-1.4.16.tar.gz
+          seed autoconf-2.68.tar.bz2 864d785215aa60d627c91fcb21b05b07 \
+            https://ftp.gnu.org/gnu/autoconf/autoconf-2.68.tar.bz2
           echo "===== FULL BUILD: mdm-image ====="
           BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
           echo "mdm-image exit=$?"
