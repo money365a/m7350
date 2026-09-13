@@ -95,9 +95,9 @@ jobs:
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -E "^(USER_CLASSES|BUILDNAME)" conf/local.conf
           # Patch bitbake: όταν αποτυγχάνει expansion, να λέει και το αρχείο
-          sed -i 's|^    except:|    except Exception as e:|' lib/bb/data.py
-          sed -i 's|bb.note("Error expanding variable %s" % key)|bb.note("Error expanding variable %s in FILE=%s DETAIL=%s" % (key, d.getVar("FILE", True), str(e)))|' lib/bb/data.py
-          grep -n "Error expanding variable" lib/bb/data.py
+          sed -i 's|^    except:|    except Exception as e:|' bitbake/lib/bb/data.py
+          sed -i 's|bb.note("Error expanding variable %s" % key)|bb.note("Error expanding variable %s in FILE=%s DETAIL=%s" % (key, d.getVar("FILE", True), str(e)))|' bitbake/lib/bb/data.py
+          grep -n "Error expanding variable" bitbake/lib/bb/data.py
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
           cp conf/bblayers.conf "$WSDIR/bblayers-generated.conf"
           BB_NUMBER_PARSE_THREADS=1 bitbake -p -DD > "$WSDIR/parse.log" 2>&1
