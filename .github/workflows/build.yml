@@ -84,6 +84,12 @@ jobs:
           export WSDIR="$PWD"
           echo "python: $(python --version 2>&1)"
           cd src/apps_proc/oe-core
+          # Patch bitbake ΠΡΙΝ το sourcing (το set_bb_env.sh αλλάζει CWD):
+          # όταν αποτυγχάνει expansion, να λέει και το αρχείο
+          sed -i 's|^    except:|    except Exception as e:|' bitbake/lib/bb/data.py
+          sed -i 's|bb.note("Error expanding variable %s" % key)|bb.note("Error expanding variable %s in FILE=%s DETAIL=%s" % (key, d.getVar("FILE", True), str(e)))|' bitbake/lib/bb/data.py
+          echo "===== bitbake patch verification ====="
+          grep -n "Error expanding variable" bitbake/lib/bb/data.py
           # Η επίσημη διαδικασία της TP-Link: παράγει bblayers.conf (όλα τα meta*)
           # και κάνει source το oe-init-build-env μέσα της.
           . build/conf/set_bb_env.sh > "$WSDIR/init.log" 2>&1
@@ -94,10 +100,6 @@ jobs:
           sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs image-prelink"/' conf/local.conf
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -E "^(USER_CLASSES|BUILDNAME)" conf/local.conf
-          # Patch bitbake: όταν αποτυγχάνει expansion, να λέει και το αρχείο
-          sed -i 's|^    except:|    except Exception as e:|' bitbake/lib/bb/data.py
-          sed -i 's|bb.note("Error expanding variable %s" % key)|bb.note("Error expanding variable %s in FILE=%s DETAIL=%s" % (key, d.getVar("FILE", True), str(e)))|' bitbake/lib/bb/data.py
-          grep -n "Error expanding variable" bitbake/lib/bb/data.py
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
           cp conf/bblayers.conf "$WSDIR/bblayers-generated.conf"
           BB_NUMBER_PARSE_THREADS=1 bitbake -p -DD > "$WSDIR/parse.log" 2>&1
