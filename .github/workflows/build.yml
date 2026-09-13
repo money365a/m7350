@@ -26,7 +26,7 @@ jobs:
             lib32z1 lib32stdc++6 lib32gcc-s1 \
             zlib1g:i386 libncurses5:i386 libstdc++6:i386 \
             libncurses5-dev flex bison gawk gettext texinfo \
-            unzip rsync cpio file wget \
+            unzip rsync cpio file wget screen \
             libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath
           gcc --version | head -1
 
@@ -58,7 +58,8 @@ jobs:
           tar -xzf M7350v3_en_gpl.tar.gz -C src 2> tar-errors.txt
           echo "tar exit=$?"
           echo "extracted files: $(find src -type f | wc -l)"
-          du -sh src
+          ls src/apps_proc/oe-core/build/conf/
+          find src -name "buildname.bbclass" || echo "buildname.bbclass NOT SHIPPED (θα το παρακάμψουμε)"
 
       - name: Build Python 2.7 (Yocto-era SDK requires it)
         continue-on-error: true
@@ -75,53 +76,42 @@ jobs:
           sudo ln -sf /opt/py2/bin/python2 /opt/py2/bin/python
           /opt/py2/bin/python --version
 
-      - name: Dump TP-Link's own build config
-        continue-on-error: true
-        run: |
-          set +e
-          {
-            echo "===== oe-core/build/conf contents ====="
-            ls -la src/apps_proc/oe-core/build/conf/ 2>/dev/null
-            for f in set_bb_env.sh local.conf bblayers.conf site.conf auto.conf; do
-              if [ -f "src/apps_proc/oe-core/build/conf/$f" ]; then
-                echo "===== $f ====="
-                cat "src/apps_proc/oe-core/build/conf/$f"
-              fi
-            done
-            echo "===== mdm9625.conf (machine) ====="
-            cat src/apps_proc/oe-core/meta-msm/conf/machine/mdm9625.conf
-            echo "===== msm.conf (distro) ====="
-            cat src/apps_proc/oe-core/meta-msm/conf/distro/msm.conf
-            echo "===== mdm-image.bb ====="
-            cat src/apps_proc/oe-core/meta-msm/recipes/images/mdm-image.bb
-            echo "===== mdm-perf-image.bb ====="
-            cat src/apps_proc/oe-core/meta-msm/recipes/images/mdm-perf-image.bb
-            echo "===== downloads count ====="
-            ls src/apps_proc/oe-core/build/downloads 2>/dev/null | wc -l
-          } | tee tp-conf.txt
-
-      - name: Full build attempt (bitbake mdm-image)
+      - name: Full build (TP-Link procedure: set_bb_env.sh + bitbake mdm-image)
         continue-on-error: true
         run: |
           set +e
           export PATH=/opt/py2/bin:$PATH
           export WSDIR="$PWD"
-          echo "python: $(python --version 2>&1), cores: $(nproc)"
+          echo "python: $(python --version 2>&1)"
           cd src/apps_proc/oe-core
-          . ./oe-init-build-env build > "$WSDIR/init.log" 2>&1
-          echo "init exit=$?"
-          # αν το target βρεθεί στις ρυθμίσεις της TP-Link, χρησιμοποίησέ το
-          TARGET=$(grep -rhoE "bitbake [a-zA-Z0-9-]+" "$BUILDDIR/conf/" 2>/dev/null | head -1 | awk '{print $2}')
-          if [ -z "$TARGET" ] || ! ls meta-msm/recipes/images/ | grep -q "^$TARGET"; then
-            TARGET=mdm-image
+          # Η επίσημη διαδικασία της TP-Link: παράγει bblayers.conf (όλα τα meta*)
+          # και κάνει source το oe-init-build-env μέσα της.
+          . build/conf/set_bb_env.sh > "$WSDIR/init.log" 2>&1
+          echo "set_bb_env exit=$? — CWD: $(pwd)"
+          echo "===== conf/bblayers.conf ====="
+          cat conf/bblayers.conf
+          # Το GPL δεν περιλαμβάνει το buildname.bbclass της TP-Link — παρακάμψη:
+          sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs image-prelink"/' conf/local.conf
+          sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
+          grep -E "^(USER_CLASSES|BUILDNAME)" conf/local.conf
+          echo "===== PARSE PROBE ====="
+          bitbake -p > "$WSDIR/parse.log" 2>&1
+          echo "parse exit=$?"
+          tail -25 "$WSDIR/parse.log"
+          if grep -q "^ERROR" "$WSDIR/parse.log"; then
+            echo "PARSE FAILED — σταματάμε εδώ για ανάλυση"
+            exit 0
           fi
-          echo "BUILDING TARGET: $TARGET"
-          BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12600 bitbake "$TARGET" > "$WSDIR/bitbake-build.log" 2>&1
-          RC=$?
-          echo "bitbake exit=$RC"
-          tail -60 "$WSDIR/bitbake-build.log"
+          echo "===== FULL BUILD: mdm-image ====="
+          BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
+          echo "mdm-image exit=$?"
+          tail -40 "$WSDIR/bitbake-mdm.log"
+          echo "===== RECOVERY IMAGE ====="
+          timeout 2400 bitbake mdm-recovery-image > "$WSDIR/bitbake-recovery.log" 2>&1
+          echo "recovery exit=$?"
+          tail -15 "$WSDIR/bitbake-recovery.log"
           echo "===== DEPLOYED IMAGES ====="
-          find "$BUILDDIR/tmp-eglibc/deploy/images" -type f 2>/dev/null | head -40
+          find tmp/deploy/images -type f 2>/dev/null | head -50
           exit 0
 
       - name: Upload logs and images
@@ -129,11 +119,12 @@ jobs:
         with:
           name: m7350-v3-build-output
           path: |
-            tp-conf.txt
             init.log
-            bitbake-build.log
+            parse.log
+            bitbake-mdm.log
+            bitbake-recovery.log
             py2-*.log
             tar-errors.txt
-            src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
+            src/apps_proc/oe-core/build/tmp/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
