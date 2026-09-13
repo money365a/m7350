@@ -95,13 +95,16 @@ jobs:
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -E "^(USER_CLASSES|BUILDNAME)" conf/local.conf
           echo "===== PARSE PROBE ====="
-          bitbake -p > "$WSDIR/parse.log" 2>&1
+          cp conf/bblayers.conf "$WSDIR/bblayers-generated.conf"
+          bitbake -p -DD > "$WSDIR/parse.log" 2>&1
           echo "parse exit=$?"
-          tail -25 "$WSDIR/parse.log"
-          if grep -q "^ERROR" "$WSDIR/parse.log"; then
-            echo "PARSE FAILED — σταματάμε εδώ για ανάλυση"
+          grep -n "Error expanding" "$WSDIR/parse.log" | head -5
+          if grep -q "Error expanding" "$WSDIR/parse.log"; then
+            echo "===== RECIPE CONTEXT BEFORE FAILURE ====="
+            grep -B40 "Error expanding variable do_install" "$WSDIR/parse.log" | tail -45
             exit 0
           fi
+          tail -10 "$WSDIR/parse.log"
           echo "===== FULL BUILD: mdm-image ====="
           BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
           echo "mdm-image exit=$?"
@@ -121,6 +124,7 @@ jobs:
           path: |
             init.log
             parse.log
+            bblayers-generated.conf
             bitbake-mdm.log
             bitbake-recovery.log
             py2-*.log
