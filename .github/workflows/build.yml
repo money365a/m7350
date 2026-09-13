@@ -76,7 +76,7 @@ jobs:
           sudo ln -sf /opt/py2/bin/python2 /opt/py2/bin/python
           /opt/py2/bin/python --version
 
-      - name: Full build (TP-Link procedure: set_bb_env.sh + bitbake mdm-image)
+      - name: "Full build - TP-Link set_bb_env.sh procedure, bitbake mdm-image"
         continue-on-error: true
         run: |
           set +e
