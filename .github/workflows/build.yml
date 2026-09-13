@@ -106,7 +106,12 @@ jobs:
           sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs image-prelink"/' conf/local.conf
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -q "^DDR_SIZE" conf/local.conf || echo 'DDR_SIZE = "512M"' >> conf/local.conf
-          grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE)" conf/local.conf
+          # τα mirrors του 2014 (codeaurora/autobuilder) είναι νεκρά και γυρνάνε 0-byte
+          # αρχεία που σπάνε τα checksums — κλείνε τα, άσε τα upstream originals
+          echo 'PREMIRRORS = ""' >> conf/local.conf
+          echo 'MIRRORS = ""' >> conf/local.conf
+          find downloads -type f -size 0 -delete 2>/dev/null
+          grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
           cp conf/bblayers.conf "$WSDIR/bblayers-generated.conf"
           BB_NUMBER_PARSE_THREADS=1 bitbake -p -DD > "$WSDIR/parse.log" 2>&1
