@@ -26,10 +26,9 @@ jobs:
             lib32z1 lib32stdc++6 lib32gcc-s1 \
             zlib1g:i386 libncurses5:i386 libstdc++6:i386 \
             libncurses5-dev flex bison gawk gettext texinfo \
-            unzip rsync cpio file wget
-          echo "===== gcc ====="
+            unzip rsync cpio file wget \
+            libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath
           gcc --version | head -1
-          df -h /
 
       - name: Download GPL source
         continue-on-error: true
@@ -39,75 +38,131 @@ jobs:
           URL2="https://archive.org/download/tp-link-gpl-source/Home/Mobile%20Wi-Fi/M7350/M7350v3_en_gpl.tar.gz"
           echo "Trying URL1: $URL1"
           wget --tries=2 -c "$URL1" -O M7350v3_en_gpl.tar.gz
-          RC1=$?
           SIZE1=$(stat -c %s M7350v3_en_gpl.tar.gz 2>/dev/null || echo 0)
-          echo "URL1 exit=$RC1 size=$SIZE1"
+          echo "URL1 size=$SIZE1"
           if [ "$SIZE1" -lt 500000000 ]; then
             if [ "$SIZE1" -lt 1000000 ]; then rm -f M7350v3_en_gpl.tar.gz; fi
             echo "URL1 incomplete — falling back to archive.org"
             wget -c "$URL2" -O M7350v3_en_gpl.tar.gz
             echo "URL2 exit=$?"
           fi
-          echo "===== FILE ====="
-          ls -la M7350v3_en_gpl.tar.gz
-          file M7350v3_en_gpl.tar.gz || true
-          echo "===== MD5 ====="
           md5sum M7350v3_en_gpl.tar.gz
           md5sum M7350v3_en_gpl.tar.gz | grep -q 0337a736e30cb11f83161bc15d53fac5 \
             && echo "MD5 OK" \
-            || echo "MD5 MISMATCH (συνεχίζουμε για recon)"
+            || echo "MD5 MISMATCH"
 
-      - name: Extract and document source tree
+      - name: Extract source tree
         continue-on-error: true
         run: |
           set +e
           mkdir -p src
-          tar -xzf M7350v3_en_gpl.tar.gz -C src
-          RC=$?
-          echo "tar exit=$RC"
-          if [ $RC -ne 0 ]; then
-            echo "Retrying as plain tar"
-            tar -xf M7350v3_en_gpl.tar.gz -C src
-          fi
+          tar -xzf M7350v3_en_gpl.tar.gz -C src 2> tar-errors.txt
+          echo "tar exit=$? (stderr στο tar-errors.txt)"
+          tail -5 tar-errors.txt
+          echo "extracted files: $(find src -type f | wc -l)"
           du -sh src
-          {
-            echo "===== TOP LEVEL (2 levels) ====="
-            find src -maxdepth 2 | sort | head -200
-            echo "===== READMEs ====="
-            find src -maxdepth 3 -type f -iname "readme*" | sort | while read -r f; do
-              echo "----- $f -----"
-              head -120 "$f"
-            done
-            echo "===== Build scripts ====="
-            find src -maxdepth 3 -type f \( -name "*.sh" -o -name "build" -o -name "Build" \) | sort | head -40 | while read -r f; do
-              echo "----- $f -----"
-              head -80 "$f"
-            done
-            echo "===== Toolchain dirs ====="
-            find src -maxdepth 3 -type d \( -iname "*toolchain*" -o -iname "*gcc*" \) | head -20
-          } | tee recon.txt
 
-      - name: First build attempt
+      - name: Build Python 2.7 (Yocto-era SDKs require it)
         continue-on-error: true
         run: |
           set +e
-          cd src
-          : > ../build.log
-          for s in $(find . -maxdepth 3 -type f \( -name "build.sh" -o -name "Build.sh" \) | sort | head -3); do
-            echo "===== RUNNING $s =====" | tee -a ../build.log
-            timeout 4800 bash "$s" 2>&1 | tee -a ../build.log
-            echo "===== $s exit code: ${PIPESTATUS[0]} =====" | tee -a ../build.log
-          done
-          echo "===== IMAGES PRODUCED =====" | tee -a ../build.log
-          find . -type f \( -name "*.bin" -o -name "*.img" -o -name "*.trx" \) -newer ../recon.txt -exec ls -la {} \; | tee -a ../build.log
+          wget -q https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
+          tar -xzf Python-2.7.18.tgz
+          cd Python-2.7.18
+          ./configure --prefix=/opt/py2 --with-ensurepip=no > ../py2-configure.log 2>&1
+          echo "configure exit=$?"
+          make -j4 -s > ../py2-make.log 2>&1
+          echo "make exit=$?"
+          sudo make install > ../py2-install.log 2>&1
+          echo "install exit=$?"
+          sudo ln -sf /opt/py2/bin/python2 /opt/py2/bin/python
+          /opt/py2/bin/python --version
 
-      - name: Upload logs and images
+      - name: Deep recon (Yocto layout)
+        continue-on-error: true
+        run: |
+          set +e
+          {
+            echo "===== SIZES ====="
+            du -sh src/apps_proc/* 2>/dev/null | sort -h
+            echo "===== YOCTO INIT SCRIPTS ====="
+            find src -type f \( -name "oe-init-build-env" -o -name "envsetup.sh" \) | head
+            echo "===== BUILD-NAMED FILES (excluding recipes) ====="
+            find src -type f -iname "*build*" | grep -vE "recipes|packages|Documentation|tests?/" | head -60
+            echo "===== ALL SHELL SCRIPTS (first 150) ====="
+            find src -type f -name "*.sh" | sort | head -150
+            echo "===== LAYER CONFS ====="
+            find src -name "layer.conf" | head -40
+            echo "===== MACHINE CONFS ====="
+            find src -path "*conf/machine*" -name "*.conf" | head -40
+            echo "===== DISTRO CONFS ====="
+            find src -path "*conf/distro*" -name "*.conf" | head -20
+            echo "===== IMAGE-LIKE RECIPES ====="
+            find src -name "*.bb" | grep -iE "image|mifi|m7350|tp" | head -50
+            echo "===== PREBUILT ARCHIVES/IMAGES INSIDE ====="
+            find src -type f \( -name "*.tar.*" -o -name "*.bin" -o -name "*.img" -o -name "*.ext4*" \) | head -40
+            echo "===== oe-core top ====="
+            ls src/apps_proc/oe-core
+            echo "===== base top ====="
+            ls src/apps_proc/base | head -40
+            echo "===== tp-opensource top ====="
+            ls src/apps_proc/tp-opensource | head -40
+            echo "===== webserver top ====="
+            ls src/apps_proc/webserver | head -20
+            echo "===== INIT SCRIPT CONTENT ====="
+            INIT=$(find src -name "oe-init-build-env" | head -1)
+            [ -n "$INIT" ] && head -60 "$INIT"
+          } | tee recon2.txt
+
+      - name: Yocto environment probe
+        continue-on-error: true
+        run: |
+          set +e
+          export PATH=/opt/py2/bin:$PATH
+          echo "python is: $(python --version 2>&1)"
+          cd src/apps_proc
+          INIT=$(find oe-core -maxdepth 1 -name "oe-init-build-env" | head -1)
+          if [ -z "$INIT" ]; then
+            echo "NO oe-init-build-env FOUND" | tee ../../yocto.log
+            exit 0
+          fi
+          echo "Using init: $INIT"
+          . ./$INIT ../../build > ../../yocto-init.log 2>&1
+          echo "init exit=$?"
+          tail -20 ../../yocto-init.log
+          # βρες όλα τα layer.conf (υπάρχοντα layers του δέντρου)
+          echo "===== LAYERS DETECTED =====" | tee -a ../../yocto.log
+          find .. -name "layer.conf" | while read -r lc; do
+            echo "layer: $(dirname $(dirname $lc))" | tee -a ../../yocto.log
+          done
+          echo "===== MACHINE CANDIDATES =====" | tee -a ../../yocto.log
+          find .. -path "*conf/machine*" -name "*.conf" | tee -a ../../yocto.log
+          echo "===== IMAGE RECIPES =====" | tee -a ../../yocto.log
+          find .. -name "*.bb" | grep -iE "image" | tee -a ../../yocto.log
+          echo "===== conf/bblayers.conf =====" | tee -a ../../yocto.log
+          cat conf/bblayers.conf 2>/dev/null | tee -a ../../yocto.log
+          echo "===== conf/local.conf (defaults) =====" | tee -a ../../yocto.log
+          head -40 conf/local.conf 2>/dev/null | tee -a ../../yocto.log
+          # Δοκιμαστικό parse (γρήγορο) — όχι πλήρες build ακόμα
+          echo "===== BITBAKE PARSE PROBE =====" | tee -a ../../yocto.log
+          bitbake -p > ../../bitbake-parse.log 2>&1
+          echo "bitbake -p exit=$?"
+          tail -30 ../../bitbake-parse.log | tee -a ../../yocto.log
+          exit 0
+
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
           name: m7350-v3-build-output
           path: |
             recon.txt
-            build.log
+            recon2.txt
+            yocto.log
+            yocto-init.log
+            bitbake-parse.log
+            py2-*.log
+            tar-errors.txt
+            build/conf/**
             src/**/*.bin
             src/**/*.img
           if-no-files-found: warn
