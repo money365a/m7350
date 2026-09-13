@@ -94,14 +94,18 @@ jobs:
           sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs image-prelink"/' conf/local.conf
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -E "^(USER_CLASSES|BUILDNAME)" conf/local.conf
-          echo "===== PARSE PROBE ====="
+          # Patch bitbake: όταν αποτυγχάνει expansion, να λέει και το αρχείο
+          sed -i 's|^    except:|    except Exception as e:|' lib/bb/data.py
+          sed -i 's|bb.note("Error expanding variable %s" % key)|bb.note("Error expanding variable %s in FILE=%s DETAIL=%s" % (key, d.getVar("FILE", True), str(e)))|' lib/bb/data.py
+          grep -n "Error expanding variable" lib/bb/data.py
+          echo "===== PARSE PROBE (single-threaded, deterministic) ====="
           cp conf/bblayers.conf "$WSDIR/bblayers-generated.conf"
-          bitbake -p -DD > "$WSDIR/parse.log" 2>&1
+          BB_NUMBER_PARSE_THREADS=1 bitbake -p -DD > "$WSDIR/parse.log" 2>&1
           echo "parse exit=$?"
           grep -n "Error expanding" "$WSDIR/parse.log" | head -5
           if grep -q "Error expanding" "$WSDIR/parse.log"; then
-            echo "===== RECIPE CONTEXT BEFORE FAILURE ====="
-            grep -B40 "Error expanding variable do_install" "$WSDIR/parse.log" | tail -45
+            echo "===== FAILURE CONTEXT ====="
+            tail -40 "$WSDIR/parse.log"
             exit 0
           fi
           tail -10 "$WSDIR/parse.log"
