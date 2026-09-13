@@ -61,6 +61,9 @@ jobs:
           # samba recipe: DDR_SIZE δεν ορίζεται πουθενά στο GPL — neutralize η έκφραση
           sed -i 's|^PRODUCT_MEMORY .*|PRODUCT_MEMORY = ""|' src/apps_proc/oe-core/meta-msm/recipes/samba/samba_3.6.22.bb
           grep -n "^PRODUCT_MEMORY" src/apps_proc/oe-core/meta-msm/recipes/samba/samba_3.6.22.bb
+          # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
+          printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
+          ls src/apps_proc/oe-core/meta-msm/classes/
           ls src/apps_proc/oe-core/build/conf/
           find src -name "buildname.bbclass" || echo "buildname.bbclass NOT SHIPPED (θα το παρακάμψουμε)"
 
