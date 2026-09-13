@@ -9,46 +9,77 @@ jobs:
     timeout-minutes: 300
 
     steps:
-      - name: Free up disk space
+      - name: Disk space
+        continue-on-error: true
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghc
           sudo apt-get clean
           df -h /
 
       - name: Install build dependencies
+        continue-on-error: true
         run: |
           sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
+          sudo apt-get update
+          sudo apt-get install -y \
             build-essential gcc-multilib g++-multilib \
             lib32z1 lib32stdc++6 lib32gcc-s1 \
             zlib1g:i386 libncurses5:i386 libstdc++6:i386 \
             libncurses5-dev flex bison gawk gettext texinfo \
             unzip rsync cpio file wget
+          echo "===== gcc ====="
           gcc --version | head -1
+          df -h /
 
-      - name: Download GPL source (official URL, archive.org fallback)
+      - name: Download GPL source
+        continue-on-error: true
         run: |
+          set +e
           URL1="https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz"
           URL2="https://archive.org/download/tp-link-gpl-source/Home/Mobile%20Wi-Fi/M7350/M7350v3_en_gpl.tar.gz"
-          wget -q --tries=2 "$URL1" -O M7350v3_en_gpl.tar.gz \
-            || wget -c "$URL2" -O M7350v3_en_gpl.tar.gz
-          echo "0337a736e30cb11f83161bc15d53fac5  M7350v3_en_gpl.tar.gz" | md5sum -c -
+          echo "Trying URL1: $URL1"
+          wget --tries=2 -c "$URL1" -O M7350v3_en_gpl.tar.gz
+          RC1=$?
+          SIZE1=$(stat -c %s M7350v3_en_gpl.tar.gz 2>/dev/null || echo 0)
+          echo "URL1 exit=$RC1 size=$SIZE1"
+          if [ "$SIZE1" -lt 500000000 ]; then
+            if [ "$SIZE1" -lt 1000000 ]; then rm -f M7350v3_en_gpl.tar.gz; fi
+            echo "URL1 incomplete — falling back to archive.org"
+            wget -c "$URL2" -O M7350v3_en_gpl.tar.gz
+            echo "URL2 exit=$?"
+          fi
+          echo "===== FILE ====="
+          ls -la M7350v3_en_gpl.tar.gz
+          file M7350v3_en_gpl.tar.gz || true
+          echo "===== MD5 ====="
+          md5sum M7350v3_en_gpl.tar.gz
+          md5sum M7350v3_en_gpl.tar.gz | grep -q 0337a736e30cb11f83161bc15d53fac5 \
+            && echo "MD5 OK" \
+            || echo "MD5 MISMATCH (συνεχίζουμε για recon)"
 
-      - name: Extract and document the source tree
+      - name: Extract and document source tree
+        continue-on-error: true
         run: |
+          set +e
           mkdir -p src
           tar -xzf M7350v3_en_gpl.tar.gz -C src
+          RC=$?
+          echo "tar exit=$RC"
+          if [ $RC -ne 0 ]; then
+            echo "Retrying as plain tar"
+            tar -xf M7350v3_en_gpl.tar.gz -C src
+          fi
+          du -sh src
           {
-            echo "===== TOP LEVEL ====="
-            ls -la src
+            echo "===== TOP LEVEL (2 levels) ====="
+            find src -maxdepth 2 | sort | head -200
             echo "===== READMEs ====="
-            find src -maxdepth 2 -type f -iname "readme*" | sort | while read -r f; do
+            find src -maxdepth 3 -type f -iname "readme*" | sort | while read -r f; do
               echo "----- $f -----"
               head -120 "$f"
             done
             echo "===== Build scripts ====="
-            find src -maxdepth 3 -type f -name "*.sh" | sort | head -30 | while read -r f; do
+            find src -maxdepth 3 -type f \( -name "*.sh" -o -name "build" -o -name "Build" \) | sort | head -40 | while read -r f; do
               echo "----- $f -----"
               head -80 "$f"
             done
@@ -56,23 +87,19 @@ jobs:
             find src -maxdepth 3 -type d \( -iname "*toolchain*" -o -iname "*gcc*" \) | head -20
           } | tee recon.txt
 
-      - name: First build attempt (non-fatal, recon run)
+      - name: First build attempt
+        continue-on-error: true
         run: |
-          cd src
           set +e
-          for s in build.sh Build.sh ap/build.sh; do
-            if [ -f "$s" ]; then
-              echo "===== Running $s =====" | tee ../build.log
-              bash "$s" 2>&1 | tee -a ../build.log
-              break
-            fi
+          cd src
+          : > ../build.log
+          for s in $(find . -maxdepth 3 -type f \( -name "build.sh" -o -name "Build.sh" \) | sort | head -5); do
+            echo "===== RUNNING $s =====" | tee -a ../build.log
+            timeout 5400 bash "$s" 2>&1 | tee -a ../build.log
+            echo "===== $s exit code: $? =====" | tee -a ../build.log
           done
-          if [ ! -s ../build.log ]; then
-            make -j2 2>&1 | tee ../build.log
-          fi
           echo "===== IMAGES PRODUCED =====" | tee -a ../build.log
           find . -type f \( -name "*.bin" -o -name "*.img" -o -name "*.trx" \) -newer ../recon.txt -exec ls -la {} \; | tee -a ../build.log
-          exit 0
 
       - name: Upload logs and images
         uses: actions/upload-artifact@v4
