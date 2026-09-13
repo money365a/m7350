@@ -27,7 +27,7 @@ jobs:
             zlib1g:i386 libncurses5:i386 libstdc++6:i386 \
             libncurses5-dev flex bison gawk gettext texinfo \
             unzip rsync cpio file wget screen \
-            libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath
+            libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath texi2html subversion
           gcc --version | head -1
 
       - name: Download GPL source
@@ -111,7 +111,7 @@ jobs:
           echo "recovery exit=$?"
           tail -15 "$WSDIR/bitbake-recovery.log"
           echo "===== DEPLOYED IMAGES ====="
-          find tmp/deploy/images -type f 2>/dev/null | head -50
+          find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
           exit 0
 
       - name: Upload logs and images
@@ -125,6 +125,6 @@ jobs:
             bitbake-recovery.log
             py2-*.log
             tar-errors.txt
-            src/apps_proc/oe-core/build/tmp/deploy/images/**
+            src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
