@@ -129,7 +129,10 @@ jobs:
           echo "===== PRE-SEED MISSING DOWNLOADS ====="
           seed() {
             f="downloads/$1"; shift; want="$1"; shift
-            [ -s "$f" ] && { echo "OK (υπάρχει): $f"; return 0; }
+            if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
+              echo "OK (checksum ταιριάζει): $f"; return 0
+            fi
+            [ -f "$f" ] && echo "EXISTING corrupt: $f — αντικατάσταση..."
             for u in "$@"; do
               wget -q --timeout=40 --tries=2 "$u" -O "$f" 2>/dev/null
               if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
