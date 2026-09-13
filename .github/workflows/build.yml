@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 300
+    timeout-minutes: 350
 
     steps:
       - name: Disk space
@@ -93,10 +93,10 @@ jobs:
           set +e
           cd src
           : > ../build.log
-          for s in $(find . -maxdepth 3 -type f \( -name "build.sh" -o -name "Build.sh" \) | sort | head -5); do
+          for s in $(find . -maxdepth 3 -type f \( -name "build.sh" -o -name "Build.sh" \) | sort | head -3); do
             echo "===== RUNNING $s =====" | tee -a ../build.log
-            timeout 5400 bash "$s" 2>&1 | tee -a ../build.log
-            echo "===== $s exit code: $? =====" | tee -a ../build.log
+            timeout 4800 bash "$s" 2>&1 | tee -a ../build.log
+            echo "===== $s exit code: ${PIPESTATUS[0]} =====" | tee -a ../build.log
           done
           echo "===== IMAGES PRODUCED =====" | tee -a ../build.log
           find . -type f \( -name "*.bin" -o -name "*.img" -o -name "*.trx" \) -newer ../recon.txt -exec ls -la {} \; | tee -a ../build.log
