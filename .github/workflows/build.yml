@@ -171,6 +171,21 @@ jobs:
           echo '        [ -f $f ] && echo "#define HAVE___FSETERR 1" >> $f || true' >> "$BD/bison_2.5.bb"
           echo '    done' >> "$BD/bison_2.5.bb"
           echo '}' >> "$BD/bison_2.5.bb"
+          # bison: regen-proof patches στα templates
+          echo 'do_configure_append() {' >> "$BD/bison_2.5.bb"
+          echo '    sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" ${S}/lib/stdio.in.h || true' >> "$BD/bison_2.5.bb"
+          echo '    echo "#define HAVE___FSETERR 1" >> ${S}/config.h.in' >> "$BD/bison_2.5.bb"
+          echo '}' >> "$BD/bison_2.5.bb"
+          # linux-libc-headers 3.1: headers εγκαθίστανται read-only → chmod πριν το cleanup
+          LLH=src/apps_proc/oe-core/meta/recipes-kernel/linux-libc-headers
+          echo '' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo 'do_install() {' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    set_arch' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix} ARCH=$ARCH' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    chmod -R u+rwX ${D}${exec_prefix}/include || true' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    rm -f ${D}${exec_prefix}/include/scsi/scsi.h' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    find ${D}${includedir} -name ..install.cmd | xargs -r rm -f' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '}' >> "$LLH/linux-libc-headers_3.1.bb"
           # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
