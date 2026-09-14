@@ -104,6 +104,7 @@ jobs:
           PKGD=src/apps_proc/oe-core/meta/recipes-devtools/pkgconfig
           echo '' >> "$PKGD/pkgconfig_0.25.bb"
           echo 'CFLAGS += "-fcommon -std=gnu89"' >> "$PKGD/pkgconfig_0.25.bb"
+          echo 'LDFLAGS += "-Wl,--allow-multiple-definition"' >> "$PKGD/pkgconfig_0.25.bb"
           echo 'do_configure_append() {' >> "$PKGD/pkgconfig_0.25.bb"
           echo '    for f in $(find ${S}/glib-1.2.10 -name Makefile 2>/dev/null); do' >> "$PKGD/pkgconfig_0.25.bb"
           echo '        sed -i "s/testgdateparser//; s/testgdate//; s/testgmodule//; s/testglib//" $f' >> "$PKGD/pkgconfig_0.25.bb"
