@@ -170,6 +170,8 @@ jobs:
             echo ''
             echo 'SRC_URI[md5sum] = "c1872a65dbd9872b7e51d845d18487aa"'
             echo 'SRC_URI[sha256sum] = "20fc818aeebae87cdbf209d35141ad9d3cf312b35a5e6be61bfcfbf9eddd212a"'
+            echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=1ebbd3e34237af26da5dc08a4e440464 \\'
+            echo '                    file://gzip.h;firstline=8;endline=20;md5=0716fa9c9c0f74cff92d2d552bd60eb9"'
           } > "$GZD/gzip_1.13.bb"
           # ncurses 5.9: MKlib_gen.sh της 6.0 (gcc>=5 -P preprocessor workaround)
           NCD=src/apps_proc/oe-core/meta/recipes-core/ncurses
@@ -356,6 +358,9 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed curl-7.23.1.tar.bz2 0296d3196b4bf82c896a869b38dbc5f2 \
+            https://curl.se/download/curl-7.23.1.tar.bz2 \
+            https://sources.openembedded.org/curl-7.23.1.tar.bz2
           seed bzip2-1.0.6.tar.gz 00b516f4704d4a7cb50a1d97e6e8e15b \
             https://sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz \
             https://sources.openembedded.org/bzip2-1.0.6.tar.gz
