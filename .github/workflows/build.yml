@@ -81,7 +81,12 @@ jobs:
           sed -i 's|^SRC_URI\[md5sum\].*|SRC_URI[md5sum] = "f4a2b0284d80353b995f8ef2385ed73c"|' "$M4D/m4-1.4.19.inc"
           sed -i 's|^SRC_URI\[sha256sum\].*|SRC_URI[sha256sum] = "3be4a26d825ffdfda52a56fc43246456989a3630093cced3fbddf4771ee58a70"|' "$M4D/m4-1.4.19.inc"
           cp "$M4D/m4-native_1.4.16.bb" "$M4D/m4-native_1.4.19.bb"
-          cat "$M4D/m4-1.4.19.inc"
+          # bypass QA gettext check: το native m4 δεν χρειάζεται gettext
+          echo '' >> "$M4D/m4-native_1.4.19.bb"
+          echo 'do_configure_prepend() {' >> "$M4D/m4-native_1.4.19.bb"
+          echo '    sed -i "/AM_GNU_GETTEXT/d" ${S}/configure.ac' >> "$M4D/m4-native_1.4.19.bb"
+          echo '}' >> "$M4D/m4-native_1.4.19.bb"
+          cat "$M4D/m4-1.4.19.inc" "$M4D/m4-native_1.4.19.bb"
           grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
