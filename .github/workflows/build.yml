@@ -69,6 +69,8 @@ jobs:
           for f in staging package libc-package sourcepkg; do
             sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' "src/apps_proc/oe-core/meta/classes/$f.bbclass"
           done
+          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' src/apps_proc/oe-core/meta/lib/oe/path.py
+          grep -n "tar -xpf" src/apps_proc/oe-core/meta/lib/oe/path.py
           grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
