@@ -139,6 +139,10 @@ jobs:
           GCCD=src/apps_proc/oe-core/meta/recipes-devtools/gcc
           sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/${BRANCH}"|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^B = "${WORKDIR}/${BRANCH}/build.${HOST_SYS}.${TARGET_SYS}"|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' "$GCCD/gcc-4.6.inc"
+          # miniupnpd: αφαίρεση missing 'data' dependency
+          sed -i 's|^DEPENDS = "data"|DEPENDS = ""|' src/apps_proc/oe-core/meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
           sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp \\|' "$GCCD/gcc-4.6.inc"
           { echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"'
             echo 'SRC_URI[gcccore.sha256sum] = "48b566f1288f099dff8fba868499a320f83586245ec69b8c82a9042566a5bf62"'
