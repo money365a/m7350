@@ -105,7 +105,10 @@ jobs:
           echo '' >> "$PKGD/pkgconfig_0.25.bb"
           echo 'CFLAGS += "-fcommon -std=gnu89"' >> "$PKGD/pkgconfig_0.25.bb"
           echo 'do_configure_append() {' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '    for f in $(find ${S} -name "Makefile" -path "*tests*"); do printf "all:\\ninstall:\\nclean:\\ndistclean:\\n" > $f; done' >> "$PKGD/pkgconfig_0.25.bb"
+          echo '    if [ -f ${S}/glib-1.2.10/Makefile ]; then' >> "$PKGD/pkgconfig_0.25.bb"
+          echo '        sed -i "s/testgdateparser//; s/testgdate//; s/testglib//" ${S}/glib-1.2.10/Makefile' >> "$PKGD/pkgconfig_0.25.bb"
+          echo '        sed -i "s/^CFLAGS = /CFLAGS = -std=gnu89 -fcommon /" ${S}/glib-1.2.10/Makefile' >> "$PKGD/pkgconfig_0.25.bb"
+          echo '    fi' >> "$PKGD/pkgconfig_0.25.bb"
           echo '}' >> "$PKGD/pkgconfig_0.25.bb"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
