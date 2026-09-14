@@ -100,6 +100,11 @@ jobs:
           echo 'do_configure_append() {' >> "$AMD/automake_1.11.2.bb"
           echo '    printf "all:\\ninstall:\\nclean:\\ndistclean:\\ncheck:\\n" > ${S}/doc/Makefile' >> "$AMD/automake_1.11.2.bb"
           echo '}' >> "$AMD/automake_1.11.2.bb"
+          # pkgconfig 0.25: bundled glib 2.28 breaks με gcc>=10 (-fno-common default)
+          PKGD=src/apps_proc/oe-core/meta/recipes-devtools/pkgconfig
+          echo '' >> "$PKGD/pkgconfig_0.25.bb"
+          echo 'CFLAGS += "-fcommon"' >> "$PKGD/pkgconfig_0.25.bb"
+          echo 'CXXFLAGS += "-fcommon"' >> "$PKGD/pkgconfig_0.25.bb"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
