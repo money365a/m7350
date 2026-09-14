@@ -125,8 +125,14 @@ jobs:
             echo 'SRC_URI[md5sum] = "7ec8409bccdbd9c958367469b6059071"'
             echo 'SRC_URI[sha256sum] = "a3f150cc55b2fa009c9411335981b55675ead4e5cb4a9c36ed40b32f81d020c1"'
             echo ''
-            echo '# glibc 2.33+ αφαίρεσε τα public _STAT_VER/_MKNOD_VER — τα ορίζουμε χειροκίνητα (x86_64 values, compat σύμβολα υπάρχουν ακόμα)'
+            echo '# glibc 2.33+ αφαίρεσε τα public _STAT_VER/_MKNOD_VER — τα ορίζουμε στα sources'
             echo 'CFLAGS += "-D_STAT_VER=1 -D_MKNOD_VER=1"'
+            echo 'do_compile_prepend_virtclass-native() {' >> "$PSD/pseudo_1.9.0.bb"
+            echo '    for f in $(find ${S}/ports -name "*.c"); do' >> "$PSD/pseudo_1.9.0.bb"
+            echo '        grep -q _STAT_VER $f && sed -i "1i #define _STAT_VER 1" $f || true' >> "$PSD/pseudo_1.9.0.bb"
+            echo '        grep -q _MKNOD_VER $f && sed -i "1i #define _MKNOD_VER 1" $f || true' >> "$PSD/pseudo_1.9.0.bb"
+            echo '    done' >> "$PSD/pseudo_1.9.0.bb"
+            echo '}' >> "$PSD/pseudo_1.9.0.bb"
           } > "$PSD/pseudo_1.9.0.bb"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
