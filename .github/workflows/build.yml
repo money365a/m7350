@@ -156,6 +156,7 @@ jobs:
           # uclibc patches: αδιάφορα για glibc build και δεν ταιριάζουν στο 4.6.4 release — remove
           sed -i '/file:\/\/.*uclibc/d' "$GCCD/gcc-4.6.inc"
           grep -c "uclibc" "$GCCD/gcc-4.6.inc" || echo "uclibc patches: καθαρά"
+          sed -i '/gcc-flags-for-build.patch/d' "$GCCD/gcc-4.6.inc"
           # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
