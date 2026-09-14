@@ -71,6 +71,17 @@ jobs:
           done
           sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' src/apps_proc/oe-core/meta/lib/oe/path.py
           grep -n "tar -xpf" src/apps_proc/oe-core/meta/lib/oe/path.py
+          # m4 1.4.16: gnulib bugs (gets/c-stack) με modern glibc — αναβάθμιση σε 1.4.19
+          M4D=src/apps_proc/oe-core/meta/recipes-devtools/m4
+          cp "$M4D/m4-1.4.16.inc" "$M4D/m4-1.4.19.inc"
+          sed -i 's/^PR = "r2"/PR = "r0"/' "$M4D/m4-1.4.19.inc"
+          sed -i '/ac_config_links/d' "$M4D/m4-1.4.19.inc"
+          sed -i 's/d32239bcb673463ab874e80d47fae504/1ebbd3e34237af26da5dc08a4e440464/' "$M4D/m4-1.4.19.inc"
+          sed -i 's/fbc986d45b3dae6725c29870dd6b669d/4031593b2166d6c47cae282d944a7ede/' "$M4D/m4-1.4.19.inc"
+          sed -i 's|^SRC_URI\[md5sum\].*|SRC_URI[md5sum] = "f4a2b0284d80353b995f8ef2385ed73c"|' "$M4D/m4-1.4.19.inc"
+          sed -i 's|^SRC_URI\[sha256sum\].*|SRC_URI[sha256sum] = "3be4a26d825ffdfda52a56fc43246456989a3630093cced3fbddf4771ee58a70"|' "$M4D/m4-1.4.19.inc"
+          cp "$M4D/m4-native_1.4.16.bb" "$M4D/m4-native_1.4.19.bb"
+          cat "$M4D/m4-1.4.19.inc"
           grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
@@ -121,6 +132,8 @@ jobs:
           # αρχεία που σπάνε τα checksums — κλείνε τα, άσε τα upstream originals
           echo 'PREMIRRORS = ""' >> conf/local.conf
           echo 'MIRRORS = ""' >> conf/local.conf
+          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
+          echo 'PREFERRED_VERSION_m4 = "1.4.19"' >> conf/local.conf
           find downloads -type f -size 0 -delete 2>/dev/null
           grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
