@@ -160,6 +160,17 @@ jobs:
           # αφαίρεση ΟΛΩΝ των παλιών patches — vanilla 4.6.4
           sed -i '/^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
           grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
+          # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
+          GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
+          { echo 'require gzip.inc'
+            echo ''
+            echo 'PR = "r0"'
+            echo ''
+            echo 'BBCLASSEXTEND = "native"'
+            echo ''
+            echo 'SRC_URI[md5sum] = "c1872a65dbd9872b7e51d845d18487aa"'
+            echo 'SRC_URI[sha256sum] = "20fc818aeebae87cdbf209d35141ad9d3cf312b35a5e6be61bfcfbf9eddd212a"'
+          } > "$GZD/gzip_1.13.bb"
           # ncurses 5.9: MKlib_gen.sh της 6.0 (gcc>=5 -P preprocessor workaround)
           NCD=src/apps_proc/oe-core/meta/recipes-core/ncurses
           echo 'EXTRA_OECONF += "--without-cxx-binding"' >> "$NCD/ncurses_5.9.bb"
@@ -290,6 +301,8 @@ jobs:
           echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
           echo 'PREFERRED_VERSION_m4 = "1.4.19"' >> conf/local.conf
           echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
+          echo 'PREFERRED_VERSION_gzip-native = "1.13"' >> conf/local.conf
+          echo 'PREFERRED_VERSION_gzip = "1.13"' >> conf/local.conf
           find downloads -type f -size 0 -delete 2>/dev/null
           grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
