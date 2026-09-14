@@ -157,6 +157,17 @@ jobs:
           sed -i '/file:\/\/.*uclibc/d' "$GCCD/gcc-4.6.inc"
           grep -c "uclibc" "$GCCD/gcc-4.6.inc" || echo "uclibc patches: καθαρά"
           sed -i '/gcc-flags-for-build.patch/d' "$GCCD/gcc-4.6.inc"
+          # αφαίρεση ΟΛΩΝ των παλιών patches — vanilla 4.6.4
+          sed -i '/^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
+          grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
+          # bison 2.5: gnulib gets bug — καθαρισμός generated stdio.h
+          BD=src/apps_proc/oe-core/meta/recipes-devtools/bison
+          echo '' >> "$BD/bison_2.5.bb"
+          echo 'do_compile_prepend() {' >> "$BD/bison_2.5.bb"
+          echo '    for f in ${S}/lib/stdio.h ${B}/lib/stdio.h; do' >> "$BD/bison_2.5.bb"
+          echo '        [ -f $f ] && sed -i "/^#undef gets$/d; /_GL_WARN_ON_USE (gets/d" $f || true' >> "$BD/bison_2.5.bb"
+          echo '    done' >> "$BD/bison_2.5.bb"
+          echo '}' >> "$BD/bison_2.5.bb"
           # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
