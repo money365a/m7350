@@ -164,7 +164,7 @@ jobs:
           BD=src/apps_proc/oe-core/meta/recipes-devtools/bison
           echo '' >> "$BD/bison_2.5.bb"
           echo 'do_compile_prepend() {' >> "$BD/bison_2.5.bb"
-          echo '    printf "#include <stdio.h>\\n#include <stdio_ext.h>\\n\\nvoid\\nfseterr (FILE *fp)\\n{\\n  __fseterr (fp);\\n}\\n" > ${S}/lib/fseterr.c' >> "$BD/bison_2.5.bb"
+          echo '    printf "#include <stdio.h>\\n\\nvoid\\nfseterr (FILE *fp)\\n{\\n  (void) fp;\\n}\\n" > ${S}/lib/fseterr.c' >> "$BD/bison_2.5.bb"
           echo '    for f in ${S}/lib/stdio.h ${B}/lib/stdio.h; do' >> "$BD/bison_2.5.bb"
           echo '        [ -f $f ] && sed -i "/^#undef gets$/d; /_GL_WARN_ON_USE (gets/d" $f || true' >> "$BD/bison_2.5.bb"
           echo '    done' >> "$BD/bison_2.5.bb"
@@ -183,7 +183,8 @@ jobs:
           echo 'do_install() {' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    set_arch' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix} ARCH=$ARCH' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    chmod -R u+rwX ${D}${exec_prefix}/include || true' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    chmod -R u+rwX ${D}${exec_prefix}/include 2>/dev/null || true' >> "$LLH/linux-libc-headers_3.1.bb"
+          echo '    sudo chmod -R u+rwx ${D}${exec_prefix}/include 2>/dev/null || true' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    rm -f ${D}${exec_prefix}/include/scsi/scsi.h' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    find ${D}${includedir} -name ..install.cmd | xargs -r rm -f' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '}' >> "$LLH/linux-libc-headers_3.1.bb"
