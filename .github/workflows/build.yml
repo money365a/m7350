@@ -206,14 +206,15 @@ jobs:
           echo 'SRC_URI[md5sum] = "99637e034aed7ddfb6056715e69d8e19"' >> "$EGD/cross-localedef-native_2.13.bb"
           # binutils 2.22: gold options.cc pointer comparison με modern g++
           BUD=src/apps_proc/oe-core/meta/recipes-devtools/binutils
-          echo 'CXXFLAGS += "-fpermissive"' >> "$BUD/binutils-cross_2.22.bb"
+          echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
           echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils-cross_2.22.bb"
-          echo '    for f in $(find ${S} ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
+          echo '    for f in $(find ${S} ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive -Wno-narrowing /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
           echo '}' >> "$BUD/binutils-cross_2.22.bb"
           # openssl-native: perlpath.pl require find.pl — modern perl χρειάζεται PERL5LIB
           OSD=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
           echo '' >> "$OSD/openssl_1.0.0f.bb"
+          echo '    echo IyEvdXNyL2Jpbi9lbnYgcGVybAojCiMgbW9kZXJuaXplZCBwZXJscGF0aC5wbCAoRmlsZTo6RmluZCBpbnN0ZWFkIG9mIHBlcmw0IGZpbmQucGwpCnVzZSBGaWxlOjpGaW5kOwoKJCNBUkdWID09IDAgfHwgcHJpbnQgU1RERVJSICJ1c2FnZTogcGVybHBhdGggbmV3cGF0aCAgKGVnIC91c3IvYmluKVxuIjsKCnN1YiB3YW50ZWQKewogICAgcmV0dXJuIHVubGVzcyAvXC5wbCQvIHx8IC9eW0NjXW9uZmlndXIvOwogICAgcmV0dXJuIGlmIC1kICRfOwogICAgb3BlbihJTiwgIjwkXyIpIHx8IGRpZSAidW5hYmxlIHRvIG9wZW4gJF86ICQhXG4iOwogICAgbXkgQGEgPSA8SU4+OwogICAgY2xvc2UoSU4pOwoKICAgIGlmICgtZCAkQVJHVlswXSkgewogICAgICAgICRhWzBdID0gIiMhJEFSR1ZbMF0vcGVybFxuIjsKICAgIH0gZWxzZSB7CiAgICAgICAgJGFbMF0gPSAiIyEkQVJHVlswXVxuIjsKICAgIH0KCiAgICBteSAkbmV3ID0gIiRfLm5ldyI7CiAgICBvcGVuKE9VVCwgIj4kbmV3IikgfHwgZGllICJ1bmFibGUgdG8gb3BlbiAkbmV3OiAkIVxuIjsKICAgIHByaW50IE9VVCBAYTsKICAgIGNsb3NlKE9VVCk7CiAgICByZW5hbWUoJG5ldywgJF8pOwp9CgpmaW5kKFwmd2FudGVkLCAiLiIpOwoxOwo= | base64 -d > ${S}/util/perlpath.pl' >> "$OSD/openssl_1.0.0f.bb"
           echo 'do_configure_prepend() {' >> "$OSD/openssl_1.0.0f.bb"
           echo '    export PERL5LIB="${S}/util:${S}:$PERL5LIB"' >> "$OSD/openssl_1.0.0f.bb"
           echo '}' >> "$OSD/openssl_1.0.0f.bb"
