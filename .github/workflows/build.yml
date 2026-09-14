@@ -208,8 +208,18 @@ jobs:
           BUD=src/apps_proc/oe-core/meta/recipes-devtools/binutils
           echo 'CXXFLAGS += "-fpermissive"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
+          echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils-cross_2.22.bb"
           echo '    for f in $(find ${S} ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
           echo '}' >> "$BUD/binutils-cross_2.22.bb"
+          # openssl-native: perlpath.pl require find.pl — modern perl χρειάζεται PERL5LIB
+          OSD=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
+          echo '' >> "$OSD/openssl_1.0.0f.bb"
+          echo 'do_configure_prepend() {' >> "$OSD/openssl_1.0.0f.bb"
+          echo '    export PERL5LIB="${S}/util:${S}:$PERL5LIB"' >> "$OSD/openssl_1.0.0f.bb"
+          echo '}' >> "$OSD/openssl_1.0.0f.bb"
+          echo 'do_compile_prepend() {' >> "$OSD/openssl_1.0.0f.bb"
+          echo '    export PERL5LIB="${S}/util:${S}:$PERL5LIB"' >> "$OSD/openssl_1.0.0f.bb"
+          echo '}' >> "$OSD/openssl_1.0.0f.bb"
           # loc-api: αφαίρεση qmi-framework (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
           grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
