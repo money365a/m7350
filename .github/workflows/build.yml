@@ -114,6 +114,17 @@ jobs:
           echo '        sed -i "s/^CFLAGS = /CFLAGS = -std=gnu89 -fcommon /" $f' >> "$PKGD/pkgconfig_0.25.bb"
           echo '    done' >> "$PKGD/pkgconfig_0.25.bb"
           echo '}' >> "$PKGD/pkgconfig_0.25.bb"
+          # pseudo 1.2 χρησιμοποιεί _STAT_VER (αφαιρέθηκε από glibc 2.28+) — αναβάθμιση σε 1.9.0
+          PSD=src/apps_proc/oe-core/meta/recipes-devtools/pseudo
+          { echo 'require pseudo.inc'
+            echo ''
+            echo 'PR = "r0"'
+            echo ''
+            echo 'SRC_URI = "http://downloads.yoctoproject.org/releases/pseudo/pseudo-1.9.0.tar.bz2"'
+            echo ''
+            echo 'SRC_URI[md5sum] = "7ec8409bccdbd9c958367469b6059071"'
+            echo 'SRC_URI[sha256sum] = "a3f150cc55b2fa009c9411335981b55675ead4e5cb4a9c36ed40b32f81d020c1"'
+          } > "$PSD/pseudo_1.9.0.bb"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
@@ -165,6 +176,7 @@ jobs:
           echo 'MIRRORS = ""' >> conf/local.conf
           echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
           echo 'PREFERRED_VERSION_m4 = "1.4.19"' >> conf/local.conf
+          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
           find downloads -type f -size 0 -delete 2>/dev/null
           grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
