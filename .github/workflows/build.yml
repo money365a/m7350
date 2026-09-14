@@ -88,7 +88,8 @@ jobs:
           echo '}' >> "$M4D/m4-native_1.4.19.bb"
           echo 'EXTRA_OECONF += "--disable-nls"' >> "$M4D/m4-native_1.4.19.bb"
           echo 'do_configure_append() {' >> "$M4D/m4-native_1.4.19.bb"
-          echo '    sed -i "/^SUBDIRS =/s/po//" ${S}/Makefile' >> "$M4D/m4-native_1.4.19.bb"
+          echo '    sed -i "/^SUBDIRS/,/^$/s/\\bpo\\b//" ${S}/Makefile 2>/dev/null || true' >> "$M4D/m4-native_1.4.19.bb"
+          echo '    printf "all:\ninstall:\nclean:\ndistclean:\ncheck:\n" > ${S}/po/Makefile' >> "$M4D/m4-native_1.4.19.bb"
           echo '}' >> "$M4D/m4-native_1.4.19.bb"
           cat "$M4D/m4-1.4.19.inc" "$M4D/m4-native_1.4.19.bb"
           grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
