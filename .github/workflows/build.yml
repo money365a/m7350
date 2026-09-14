@@ -167,6 +167,9 @@ jobs:
           echo '    for f in ${S}/lib/stdio.h ${B}/lib/stdio.h; do' >> "$BD/bison_2.5.bb"
           echo '        [ -f $f ] && sed -i "/^#undef gets$/d; /_GL_WARN_ON_USE (gets/d" $f || true' >> "$BD/bison_2.5.bb"
           echo '    done' >> "$BD/bison_2.5.bb"
+          echo '    for f in ${S}/config.h ${B}/config.h; do' >> "$BD/bison_2.5.bb"
+          echo '        [ -f $f ] && echo "#define HAVE___FSETERR 1" >> $f || true' >> "$BD/bison_2.5.bb"
+          echo '    done' >> "$BD/bison_2.5.bb"
           echo '}' >> "$BD/bison_2.5.bb"
           # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
