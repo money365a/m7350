@@ -139,8 +139,16 @@ jobs:
           GCCD=src/apps_proc/oe-core/meta/recipes-devtools/gcc
           sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2 \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2 \\|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp \\|' "$GCCD/gcc-4.6.inc"
+          { echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"'
+            echo 'SRC_URI[gcccore.sha256sum] = "48b566f1288f099dff8fba868499a320f83586245ec69b8c82a9042566a5bf62"'
+            echo 'SRC_URI[gccgpp.md5sum] = "7fa36715b57a2cb9bfc66bac4ecb1b84"'
+            echo 'SRC_URI[gccgpp.sha256sum] = "4eaa347f9cd3ab7d5e14efbb9c5c03009229cd714b558fc55fa56e8996b74d42"'
+          } >> "$GCCD/gcc-4.6.inc"
           grep -A3 "^SRC_URI" "$GCCD/gcc-4.6.inc" | head -5
+          # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
+          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
+          grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           # mdm-bootimg: αφαίρεση του ανύπαρκτου kernel-tests package
           sed -i '/kernel-tests \\/d' src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc
           grep -c "kernel-tests" src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc || echo "kernel-tests: αφαιρέθηκε"
@@ -243,6 +251,8 @@ jobs:
             https://sources.openembedded.org/zlib-1.2.5.tar.bz2
           seed flex-2.5.35.tar.bz2 10714e50cea54dc7a227e3eddcd44d57 \
             https://sources.openembedded.org/flex-2.5.35.tar.bz2
+          seed mpc-0.8.2.tar.gz e98267ebd5648a39f881d66797122fb6 \
+            https://sources.openembedded.org/mpc-0.8.2.tar.gz
           # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
           touch downloads/pseudo-1.2.tar.bz2.done
           echo "===== FULL BUILD: mdm-image ====="
