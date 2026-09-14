@@ -132,6 +132,7 @@ jobs:
             echo '        grep -q _STAT_VER $f && sed -i "1i #define _STAT_VER 1" $f || true' >> "$PSD/pseudo_1.9.0.bb"
             echo '        grep -q _MKNOD_VER $f && sed -i "1i #define _MKNOD_VER 1" $f || true' >> "$PSD/pseudo_1.9.0.bb"
             echo '    done' >> "$PSD/pseudo_1.9.0.bb"
+            echo '    sed -i "s/^} pseudo_access_t;\$/};/" ${S}/pseudo_ipc.h' >> "$PSD/pseudo_1.9.0.bb"
             echo '}' >> "$PSD/pseudo_1.9.0.bb"
           } > "$PSD/pseudo_1.9.0.bb"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
