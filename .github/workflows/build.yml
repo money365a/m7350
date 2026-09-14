@@ -183,10 +183,6 @@ jobs:
           echo 'do_install() {' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    set_arch' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix} ARCH=$ARCH' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    ls -la ${D}${exec_prefix}/include | head -10 || true' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    chmod -R u+rwX ${D}${exec_prefix}/include' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    sudo chmod -R u+rwx ${D}${exec_prefix}/include' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    ls -la ${D}${exec_prefix}/include | head -10 || true' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '    rm -f ${D}${exec_prefix}/include/scsi/scsi.h || true' >> "$LLH/linux-libc-headers_3.1.bb"
           echo '}' >> "$LLH/linux-libc-headers_3.1.bb"
           # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
@@ -212,7 +208,7 @@ jobs:
           BUD=src/apps_proc/oe-core/meta/recipes-devtools/binutils
           echo 'CXXFLAGS += "-fpermissive"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
-          echo '    for f in $(find ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
+          echo '    for f in $(find ${S} ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
           echo '}' >> "$BUD/binutils-cross_2.22.bb"
           # loc-api: αφαίρεση qmi-framework (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
@@ -322,6 +318,10 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed expat-2.0.1.tar.gz ee8b492592568805593f81f8cdf2a04c \
+            https://sources.openembedded.org/expat-2.0.1.tar.gz \
+            https://github.com/libexpat/libexpat/releases/download/R_2_0_1/expat-2.0.1.tar.gz \
+            http://deb.debian.org/debian/pool/main/e/expat/expat_2.0.1.orig.tar.gz
           # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
           touch downloads/pseudo-1.2.tar.bz2.done
           echo "===== FULL BUILD: mdm-image ====="
