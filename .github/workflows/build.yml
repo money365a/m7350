@@ -93,11 +93,13 @@ jobs:
           echo '}' >> "$M4D/m4-native_1.4.19.bb"
           cat "$M4D/m4-1.4.19.inc" "$M4D/m4-native_1.4.19.bb"
           grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
-          # automake 1.11.2: skip info docs (texinfo 6 incompatibility)
+          # automake 1.11.2: skip info docs (texinfo 6 incompatibility) — άδειο doc/Makefile
           AMD=src/apps_proc/oe-core/meta/recipes-devtools/automake
-          echo 'do_configure_append() {' > "$AMD/automake_1.11.2.bbappend"
-          echo '    touch ${S}/doc/automake.info ${S}/doc/automake-history.info' >> "$AMD/automake_1.11.2.bbappend"
-          echo '}' >> "$AMD/automake_1.11.2.bbappend"
+          rm -f "$AMD/automake_1.11.2.bbappend"
+          echo '' >> "$AMD/automake_1.11.2.bb"
+          echo 'do_configure_append() {' >> "$AMD/automake_1.11.2.bb"
+          echo '    printf "all:\\ninstall:\\nclean:\\ndistclean:\\ncheck:\\n" > ${S}/doc/Makefile' >> "$AMD/automake_1.11.2.bb"
+          echo '}' >> "$AMD/automake_1.11.2.bb"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
