@@ -130,12 +130,14 @@ jobs:
           seed() {
             f="downloads/$1"; shift; want="$1"; shift
             if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
+              touch "$f.done"
               echo "OK (checksum ταιριάζει): $f"; return 0
             fi
             [ -f "$f" ] && echo "EXISTING corrupt: $f — αντικατάσταση..."
             for u in "$@"; do
               wget -q --timeout=40 --tries=2 "$u" -O "$f" 2>/dev/null
               if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
+                touch "$f.done"
                 echo "SEEDED: $f  <-  $u"; return 0
               fi
             done
@@ -153,6 +155,8 @@ jobs:
           seed pseudo-1.2.tar.bz2 a2819084bab7e991f06626d02cf55048 \
             https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2 \
             https://sources.openembedded.org/pseudo-1.2.tar.bz2
+          # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
+          touch downloads/pseudo-1.2.tar.bz2.done
           echo "===== FULL BUILD: mdm-image ====="
           BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
           echo "mdm-image exit=$?"
