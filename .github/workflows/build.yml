@@ -152,6 +152,22 @@ jobs:
           # mdm-bootimg: αφαίρεση του ανύπαρκτου kernel-tests package
           sed -i '/kernel-tests \\/d' src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc
           grep -c "kernel-tests" src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc || echo "kernel-tests: αφαιρέθηκε"
+          # eglibc 2.13: το SVN του eglibc.org είναι νεκρό — Launchpad orig tarballs
+          EGD=src/apps_proc/oe-core/meta/recipes-core/eglibc
+          sed -i 's|^SRC_URI = "svn://www.eglibc.org/svn/branches/;module=${EGLIBC_BRANCH};proto=http \\|SRC_URI = "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\|' "$EGD/eglibc_2.13.bb"
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' "$EGD/eglibc_2.13.bb"
+          sed -i '/^PR_append = "+svnr/d' "$EGD/eglibc_2.13.bb"
+          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> "$EGD/eglibc_2.13.bb"
+          grep -n "^SRC_URI\|^S =\|md5sum" "$EGD/eglibc_2.13.bb" | head -4
+          # cross-localedef (eglibc-2_12 branch → 2.12.1 tarball)
+          sed -i 's|^SRC_URI = "svn://www.eglibc.org/svn/branches/;module=${EGLIBC_BRANCH};proto=http "|SRC_URI = "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz"|' "$EGD/cross-localedef-native_2.13.bb"
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/localedef"|S = "${WORKDIR}/eglibc-2.12.1/localedef"|' "$EGD/cross-localedef-native_2.13.bb"
+          sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' "$EGD/cross-localedef-native_2.13.bb"
+          sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' "$EGD/cross-localedef-native_2.13.bb"
+          echo 'SRC_URI[md5sum] = "99637e034aed7ddfb6056715e69d8e19"' >> "$EGD/cross-localedef-native_2.13.bb"
+          # loc-api: αφαίρεση qmi-framework (δεν υπάρχει στο GPL)
+          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
+          grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
@@ -253,6 +269,10 @@ jobs:
             https://sources.openembedded.org/flex-2.5.35.tar.bz2
           seed mpc-0.8.2.tar.gz e98267ebd5648a39f881d66797122fb6 \
             https://sources.openembedded.org/mpc-0.8.2.tar.gz
+          seed eglibc_2.13.orig.tar.gz 17695e0d2d84d0a0f68c652f6ad4af7c \
+            https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
+          seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
+            https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
           # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
           touch downloads/pseudo-1.2.tar.bz2.done
           echo "===== FULL BUILD: mdm-image ====="
