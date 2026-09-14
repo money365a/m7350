@@ -135,6 +135,15 @@ jobs:
             echo '    sed -i "s/^} pseudo_access_t;\$/};/" ${S}/pseudo_ipc.h' >> "$PSD/pseudo_1.9.0.bb"
             echo '}' >> "$PSD/pseudo_1.9.0.bb"
           } > "$PSD/pseudo_1.9.0.bb"
+          # gcc 4.6: το SVN του gcc.gnu.org retired — release tarballs 4.6.4 από ftp.gnu.org
+          GCCD=src/apps_proc/oe-core/meta/recipes-devtools/gcc
+          sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2 \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2 \\|' "$GCCD/gcc-4.6.inc"
+          grep -A3 "^SRC_URI" "$GCCD/gcc-4.6.inc" | head -5
+          # mdm-bootimg: αφαίρεση του ανύπαρκτου kernel-tests package
+          sed -i '/kernel-tests \\/d' src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc
+          grep -c "kernel-tests" src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc || echo "kernel-tests: αφαιρέθηκε"
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
@@ -182,7 +191,7 @@ jobs:
           grep -q "^DDR_SIZE" conf/local.conf || echo 'DDR_SIZE = "512M"' >> conf/local.conf
           # τα mirrors του 2014 (codeaurora/autobuilder) είναι νεκρά και γυρνάνε 0-byte
           # αρχεία που σπάνε τα checksums — κλείνε τα, άσε τα upstream originals
-          echo 'PREMIRRORS = ""' >> conf/local.conf
+          echo 'PREMIRRORS = "http://.*/.* https://sources.openembedded.org/ \n ftp://.*/.* https://sources.openembedded.org/ \n"' >> conf/local.conf
           echo 'MIRRORS = ""' >> conf/local.conf
           echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
           echo 'PREFERRED_VERSION_m4 = "1.4.19"' >> conf/local.conf
@@ -229,6 +238,11 @@ jobs:
           seed pseudo-1.2.tar.bz2 a2819084bab7e991f06626d02cf55048 \
             https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2 \
             https://sources.openembedded.org/pseudo-1.2.tar.bz2
+          seed zlib-1.2.5.tar.bz2 be1e89810e66150f5b0327984d8625a0 \
+            https://zlib.net/fossils/zlib-1.2.5.tar.bz2 \
+            https://sources.openembedded.org/zlib-1.2.5.tar.bz2
+          seed flex-2.5.35.tar.bz2 10714e50cea54dc7a227e3eddcd44d57 \
+            https://sources.openembedded.org/flex-2.5.35.tar.bz2
           # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
           touch downloads/pseudo-1.2.tar.bz2.done
           echo "===== FULL BUILD: mdm-image ====="
