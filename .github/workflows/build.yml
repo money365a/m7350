@@ -64,6 +64,12 @@ jobs:
           # site.conf: σβήσε το νεκρό PREMIRRORS μπλοκ (γραμμές 42-52)
           sed -i '42,52d' src/apps_proc/oe-core/meta-msm/conf/site.conf
           grep -c "PREMIRRORS" src/apps_proc/oe-core/meta-msm/conf/site.conf || echo "PREMIRRORS μπλοκ: καθαρό"
+          # Modern tar (>=1.32): το "-ps" με -c είναι fatalError — παλιά αγνοούνταν.
+          # Διόρθωση και στα 4 classes με tar staging pipes.
+          for f in staging package libc-package sourcepkg; do
+            sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' "src/apps_proc/oe-core/meta/classes/$f.bbclass"
+          done
+          grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
           ls src/apps_proc/oe-core/meta-msm/classes/
@@ -165,6 +171,10 @@ jobs:
           timeout 2400 bitbake mdm-recovery-image > "$WSDIR/bitbake-recovery.log" 2>&1
           echo "recovery exit=$?"
           tail -15 "$WSDIR/bitbake-recovery.log"
+          echo "===== FAILURE LOGS ====="
+          mkdir -p "$WSDIR/faillogs"
+          grep -rl "Function failed" tmp-eglibc/work/*/*/temp/ 2>/dev/null | head -5 | xargs -r -I{} cp -L {} "$WSDIR/faillogs/" 2>/dev/null
+          ls -la "$WSDIR/faillogs/" 2>/dev/null
           echo "===== DEPLOYED IMAGES ====="
           find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
           exit 0
@@ -181,6 +191,7 @@ jobs:
             bitbake-recovery.log
             py2-*.log
             tar-errors.txt
+            faillogs/**
             src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
