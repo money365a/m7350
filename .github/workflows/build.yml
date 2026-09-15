@@ -164,6 +164,9 @@ jobs:
           # αφαίρεση ΟΛΩΝ των παλιών patches — vanilla 4.6.4
           sed -i '/^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
           grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
+          # bzip2-native: rpath ώστε το binary να βρίσκει libbz2.so.0 στο native sysroot
+          BZD=src/apps_proc/oe-core/meta/recipes-extended/bzip2
+          echo 'LDFLAGS += "-Wl,-rpath,${libdir}"' >> "$BZD/bzip2_1.0.6.bb"
           # elfutils 0.148: gcc 9+ missing-attributes warning ως error
           EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
           echo 'CFLAGS += "-Wno-missing-attributes -Wno-error=missing-attributes"' >> "$EUD/elfutils_0.148.bb"
