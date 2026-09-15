@@ -181,6 +181,9 @@ jobs:
             echo '    sed -i "/AM_GNU_GETTEXT/d" ${S}/configure.ac'
             echo '}'
             echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=1ebbd3e34237af26da5dc08a4e440464 file://gzip.h;firstline=8;endline=20;md5=0716fa9c9c0f74cff92d2d552bd60eb9"'
+          echo 'do_compile_prepend() {' >> "$GZD/gzip_1.13.bb"
+          echo '    mkdir -p ${S}/sys ${B}/sys' >> "$GZD/gzip_1.13.bb"
+          echo '}' >> "$GZD/gzip_1.13.bb"
           } > "$GZD/gzip_1.13.bb"
           # ncurses 5.9: MKlib_gen.sh της 6.0 (gcc>=5 -P preprocessor workaround)
           NCD=src/apps_proc/oe-core/meta/recipes-core/ncurses
