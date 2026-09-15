@@ -191,8 +191,22 @@ jobs:
           echo '}' >> "$PRD/perl-native_5.14.2.bb"
           # opkg_svn: googlecode svn νεκρό — rewrite σε tarball
           OPD=src/apps_proc/oe-core/meta/recipes-devtools/opkg
-          sed -i 's|svn://opkg.googlecode.com/svn;module=trunk;proto=http|https://sources.openembedded.org/opkg-0.1.8.tar.gz|; s|^S = .*|S = "${WORKDIR}/opkg-0.1.8"|; /^SRCREV/d' "$OPD/opkg_svn.bb"
-          sed -i 's|svn://svn.openmoko.org/trunk/src/host/;module=opkg-utils;proto=http|https://sources.openembedded.org/opkg-utils_svn-0.1.8.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'require opkg.inc' > "$OPD/opkg_svn.bb"
+          echo 'DESCRIPTION = "Opkg Package Manager"' >> "$OPD/opkg_svn.bb"
+          echo 'DEPENDS = "curl-native"' >> "$OPD/opkg_svn.bb"
+          echo 'SRC_URI = "https://sources.openembedded.org/opkg-0.1.8.tar.gz"' >> "$OPD/opkg_svn.bb"
+          echo 'S = "${WORKDIR}/opkg-0.1.8"' >> "$OPD/opkg_svn.bb"
+          echo 'BBCLASSEXTEND = "native"' >> "$OPD/opkg_svn.bb"
+          echo 'DESCRIPTION = "OPKG Package Manager Utilities"' > src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'LICENSE = "GPLv2+"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=94d55d512a9ba36caa9b7df079bae19f"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'SRC_URI = "https://sources.openembedded.org/opkg-utils-0.1.8.tar.bz2"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'S = "${WORKDIR}/opkg-utils"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'do_install() {' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo '    install -d ${D}${bindir}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo '    install -m 0755 ${S}/opkg.py ${D}${bindir}/' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo '}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'BBCLASSEXTEND = "native"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://sources.openembedded.org/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb
           sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm|https://sources.openembedded.org/rpm-5.4.0-0.20101229.src.rpm|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
