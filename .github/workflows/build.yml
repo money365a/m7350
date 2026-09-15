@@ -270,18 +270,17 @@ jobs:
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils_2.22.bb"
           echo 'CFLAGS += "-Wno-error=unused-value"' >> "$BUD/binutils_2.22.bb"
-          echo 'do_compile_prepend() {' >> "$BUD/binutils_2.22.bb"
-          echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils_2.22.bb"
-          echo '}' >> "$BUD/binutils_2.22.bb"
+
           echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
           echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils-cross_2.22.bb"
           echo '    for f in $(find ${S} ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive -Wno-narrowing /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
           echo '}' >> "$BUD/binutils-cross_2.22.bb"
           # gettext-native 0.18.1.1: gnulib gets fix
           GTD=src/apps_proc/oe-core/meta/recipes-core/gettext
-          echo 'do_compile_prepend() {' >> "$GTD/gettext_0.18.1.1.bb"
-          echo '    find ${S} -name stdio.h -path "*gnulib*" | xargs -r sed -i "/_GL_WARN_ON_USE (gets/d; / undef gets/d" || true' >> "$GTD/gettext_0.18.1.1.bb"
+          echo 'do_configure_prepend() {' >> "$GTD/gettext_0.18.1.1.bb"
+          echo '    find ${S} -name stdio.h -path "*gnulib*" -exec sed -i "/_GL_WARN_ON_USE (gets/d" {} \;' >> "$GTD/gettext_0.18.1.1.bb"
           echo '}' >> "$GTD/gettext_0.18.1.1.bb"
+
           # openssl-native: perlpath.pl require find.pl — modern perl χρειάζεται PERL5LIB
           OSD=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
           echo '' >> "$OSD/openssl_1.0.0f.bb"
@@ -360,6 +359,7 @@ jobs:
           echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
           echo 'PREFERRED_VERSION_gzip-native = "1.12"' >> conf/local.conf
           echo 'PREFERRED_VERSION_gzip = "1.12"' >> conf/local.conf
+          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> conf/local.conf
           echo 'EXTRA_OECONF_append = " --disable-nls"' >> conf/local.conf
           find downloads -type f -size 0 -delete 2>/dev/null
           grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
