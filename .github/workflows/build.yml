@@ -167,6 +167,9 @@ jobs:
           # bzip2-native: rpath ώστε το binary να βρίσκει libbz2.so.0 στο native sysroot
           BZD=src/apps_proc/oe-core/meta/recipes-extended/bzip2
           echo 'LDFLAGS += "-Wl,-rpath,${libdir}"' >> "$BZD/bzip2_1.0.6.bb"
+          echo 'do_compile_prepend() {' >> "$BZD/bzip2_1.0.6.bb"
+          echo '    sed -i "s|-o bzip2-shared bzip2.c|-Wl,-rpath,${libdir} -o bzip2-shared bzip2.c|" ${S}/Makefile-libbz2_so || true' >> "$BZD/bzip2_1.0.6.bb"
+          echo '}' >> "$BZD/bzip2_1.0.6.bb"
           # elfutils 0.148: gcc 9+ missing-attributes warning ως error
           EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
           echo 'CFLAGS += "-Wno-missing-attributes -Wno-error=missing-attributes"' >> "$EUD/elfutils_0.148.bb"
@@ -387,6 +390,9 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed attr-2.4.46.src.tar.gz db557c17fdfa4f785333ecda08654010 \
+            https://download.savannah.gnu.org/releases/attr/attr-2.4.46.src.tar.gz \
+            https://sources.openembedded.org/attr-2.4.46.src.tar.gz
           seed elfutils-0.148.tar.bz2 a0bed1130135f17ad27533b0034dba8d \
             https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2 \
             https://sources.openembedded.org/elfutils-0.148.tar.bz2
