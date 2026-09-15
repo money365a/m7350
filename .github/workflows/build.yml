@@ -175,16 +175,6 @@ jobs:
           echo 'do_compile_prepend() {' >> "$BZD/bzip2_1.0.6.bb"
           echo '    sed -i "s|-o bzip2-shared bzip2.c|-Wl,-rpath,${libdir} -o bzip2-shared bzip2.c|" ${S}/Makefile-libbz2_so || true' >> "$BZD/bzip2_1.0.6.bb"
           echo '}' >> "$BZD/bzip2_1.0.6.bb"
-          # elfutils 0.148: gcc 9+ missing-attributes warning ως error
-          EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
-          echo 'CFLAGS += "-Wno-missing-attributes -Wno-error=missing-attributes"' >> "$EUD/elfutils_0.148.bb"
-          echo 'do_configure_prepend() {' >> "$EUD/elfutils_0.148.bb"
-          echo '    find ${S} -name Makefile.in -o -name configure | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
-          echo '}' >> "$EUD/elfutils_0.148.bb"
-          echo 'do_configure_append() {' >> "$EUD/elfutils_0.148.bb"
-          echo '    find ${S} -name Makefile | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
-          echo '}' >> "$EUD/elfutils_0.148.bb"
-          echo '}' >> "$EUD/elfutils_0.148.bb"
           # perl-native 5.14.2: current_saltbits αφαιρέθηκε από modern glibc
           PRD=src/apps_proc/oe-core/meta/recipes-devtools/perl
           echo 'do_compile_prepend() {' >> "$PRD/perl-native_5.14.2.bb"
@@ -333,7 +323,7 @@ jobs:
           echo "===== conf/bblayers.conf ====="
           cat conf/bblayers.conf
           # Το GPL δεν περιλαμβάνει το buildname.bbclass της TP-Link — παρακάμψη:
-          sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs image-prelink"/' conf/local.conf
+          sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs"/' conf/local.conf
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -q "^DDR_SIZE" conf/local.conf || echo 'DDR_SIZE = "512M"' >> conf/local.conf
           # τα mirrors του 2014 (codeaurora/autobuilder) είναι νεκρά και γυρνάνε 0-byte
@@ -430,7 +420,7 @@ jobs:
           # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
           touch downloads/pseudo-1.2.tar.bz2.done
           echo "===== FULL BUILD: mdm-image ====="
-          BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
+          BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake -k mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
           echo "mdm-image exit=$?"
           tail -40 "$WSDIR/bitbake-mdm.log"
           echo "===== RECOVERY IMAGE ====="
