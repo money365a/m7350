@@ -183,7 +183,7 @@ jobs:
             echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504 file://gzip.h;firstline=8;endline=20;md5=5a78e7654c2417610e2a883c0f0c6947"'
           echo 'do_compile_prepend() {' >> "$GZD/gzip_1.12.bb"
           echo '    mkdir -p ${S}/sys ${B}/sys' >> "$GZD/gzip_1.12.bb"
-          echo '    mv ${S}/configure.ac ${S}/configure.ac.disabled 2>/dev/null || true' >> "$GZD/gzip_1.12.bb"
+          echo '    touch ${S}/aclocal.m4 ${S}/configure ${S}/config.h.in ${S}/Makefile.in ${S}/Makefile' >> "$GZD/gzip_1.12.bb"
           echo '}' >> "$GZD/gzip_1.12.bb"
           } > "$GZD/gzip_1.12.bb"
           # ncurses 5.9: MKlib_gen.sh της 6.0 (gcc>=5 -P preprocessor workaround)
