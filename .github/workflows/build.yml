@@ -168,9 +168,8 @@ jobs:
           grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
           # elfutils-native: scrub -Werror από generated Makefiles
           EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
-          echo 'do_configure_append() {' >> "$EUD/elfutils_0.148.bb"
-          echo '    find ${S} -name Makefile | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
-          echo '}' >> "$EUD/elfutils_0.148.bb"
+
+          echo 'CFLAGS += "-Wno-error"' >> "$EUD/elfutils_0.148.bb"
           # bzip2-native: rpath ώστε το binary να βρίσκει libbz2.so.0 στο native sysroot
           BZD=src/apps_proc/oe-core/meta/recipes-extended/bzip2
           echo 'LDFLAGS += "-Wl,-rpath,${libdir}"' >> "$BZD/bzip2_1.0.6.bb"
@@ -281,7 +280,7 @@ jobs:
           # gettext-native 0.18.1.1: gnulib gets fix
           GTD=src/apps_proc/oe-core/meta/recipes-core/gettext
           echo 'do_compile_prepend() {' >> "$GTD/gettext_0.18.1.1.bb"
-          echo '    find ${S} -name stdio.h -path "*gnulib*" | xargs -r sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" || true' >> "$GTD/gettext_0.18.1.1.bb"
+          echo '    find ${S} -name stdio.h -path "*gnulib*" | xargs -r sed -i "/_GL_WARN_ON_USE (gets/d; / undef gets/d" || true' >> "$GTD/gettext_0.18.1.1.bb"
           echo '}' >> "$GTD/gettext_0.18.1.1.bb"
           # openssl-native: perlpath.pl require find.pl — modern perl χρειάζεται PERL5LIB
           OSD=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
