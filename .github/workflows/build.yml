@@ -167,6 +167,11 @@ jobs:
           # bzip2-native: rpath ώστε το binary να βρίσκει libbz2.so.0 στο native sysroot
           BZD=src/apps_proc/oe-core/meta/recipes-extended/bzip2
           echo 'LDFLAGS += "-Wl,-rpath,${libdir}"' >> "$BZD/bzip2_1.0.6.bb"
+          echo 'do_install_append_virtclass-native() {' >> "$BZD/bzip2_1.0.6.bb"
+          echo '    sudo mkdir -p /usr/local/lib' >> "$BZD/bzip2_1.0.6.bb"
+          echo '    sudo cp -a ${D}${libdir}/libbz2.so* /usr/local/lib/ 2>/dev/null || true' >> "$BZD/bzip2_1.0.6.bb"
+          echo '    sudo ldconfig 2>/dev/null || true' >> "$BZD/bzip2_1.0.6.bb"
+          echo '}' >> "$BZD/bzip2_1.0.6.bb"
           echo 'do_compile_prepend() {' >> "$BZD/bzip2_1.0.6.bb"
           echo '    sed -i "s|-o bzip2-shared bzip2.c|-Wl,-rpath,${libdir} -o bzip2-shared bzip2.c|" ${S}/Makefile-libbz2_so || true' >> "$BZD/bzip2_1.0.6.bb"
           echo '}' >> "$BZD/bzip2_1.0.6.bb"
