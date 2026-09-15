@@ -12,6 +12,8 @@ jobs:
       - name: Disk space
         continue-on-error: true
         run: |
+          sudo ln -sf /bin/bash /bin/sh
+          ls -la /bin/sh
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghc
           sudo apt-get clean
           df -h /
@@ -413,6 +415,45 @@ jobs:
           seed bzip2-1.0.6.tar.gz 00b516f4704d4a7cb50a1d97e6e8e15b \
             https://sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz \
             https://sources.openembedded.org/bzip2-1.0.6.tar.gz
+          seed base-passwd_3.5.22.tar.gz 47f22ab6b572d0133409ff6ad1fab402 \
+            http://deb.debian.org/debian/pool/main/b/base-passwd/base-passwd_3.5.22.tar.gz \
+            https://sources.openembedded.org/base-passwd_3.5.22.tar.gz
+          seed netbase_4.47.tar.gz fcd87a62f177592724a8066e3774ae97 \
+            http://deb.debian.org/debian/pool/main/n/netbase/netbase_4.47.tar.gz \
+            https://sources.openembedded.org/netbase_4.47.tar.gz
+          seed dnsmasq-2.55.tar.gz b093d7c6bc7f97ae6fd35d048529232a \
+            https://sources.openembedded.org/dnsmasq-2.55.tar.gz
+          seed dhcpcd-5.2.10.tar.bz2 c65e8cef3281eaf2e12a84bd882f5c63 \
+            https://sources.openembedded.org/dhcpcd-5.2.10.tar.bz2
+          seed popt-1.16.tar.gz 3743beefa3dd6247a73f8f7a32c14c33 \
+            https://sources.openembedded.org/popt-1.16.tar.gz
+          seed tinylogin-1.4.tar.bz2 44da0ff2b727455669890b24305e351d \
+            https://sources.openembedded.org/tinylogin-1.4.tar.bz2
+          seed wireless_tools.29.tar.gz e06c222e186f7cc013fd272d023710cb \
+            https://sources.openembedded.org/wireless_tools.29.tar.gz
+          seed shadow-4.1.4.3.tar.bz2 b8608d8294ac88974f27b20f991c0e79 \
+            https://sources.openembedded.org/shadow-4.1.4.3.tar.bz2
+          seed mklibs_0.1.33.tar.gz a462d9b802164993d247c1193116d78b \
+            http://deb.debian.org/debian/pool/main/m/mklibs/mklibs_0.1.33.tar.gz \
+            https://sources.openembedded.org/mklibs_0.1.33.tar.gz
+          seed module-init-tools-3.16.tar.bz2 bc44832c6e41707b8447e2847d2019f5 \
+            https://sources.openembedded.org/module-init-tools-3.16.tar.bz2 \
+            https://ftp.kernel.org/pub/linux/utils/kernel/module-init-tools/module-init-tools-3.16.tar.bz2
+          seed libcap-2.22.tar.bz2 ce64058bdb3f086ddbfca8ce6c919845 \
+            https://sources.openembedded.org/libcap-2.22.tar.bz2
+          seed zip30.tgz 7b74551e63f8ee6aab6fbc86676c0d37 \
+            https://sources.openembedded.org/zip30.tgz
+          seed unzip60.tgz 62b490407489521db863b523a7f86375 \
+            https://sources.openembedded.org/unzip60.tgz
+          seed pax-utils-0.2.2.tar.bz2 93a2e993ec7a83627c39ddf92988e191 \
+            https://sources.openembedded.org/pax-utils-0.2.2.tar.bz2
+          seed gdb-7.3.1.tar.gz c2795d636a9481d022608cab201be613 \
+            https://ftp.gnu.org/gnu/gdb/gdb-7.3.1.tar.gz \
+            https://sources.openembedded.org/gdb-7.3.1.tar.gz
+          seed miniupnpd-1.8.20130521.tar.gz 2b913c53fbeb562731e84b66b3ce704f \
+            https://sources.openembedded.org/miniupnpd-1.8.20130521.tar.gz
+          seed sysvinit-2.88dsf.tar.bz2 6eda8a97b86e0a6f59dabbf25202aa6f \
+            https://sources.openembedded.org/sysvinit-2.88dsf.tar.bz2
           seed expat-2.0.1.tar.gz ee8b492592568805593f81f8cdf2a04c \
             https://sources.openembedded.org/expat-2.0.1.tar.gz \
             https://github.com/libexpat/libexpat/releases/download/R_2_0_1/expat-2.0.1.tar.gz \
