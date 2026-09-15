@@ -180,6 +180,9 @@ jobs:
           echo 'CFLAGS += "-Wno-missing-attributes -Wno-error=missing-attributes"' >> "$EUD/elfutils_0.148.bb"
           echo 'do_configure_prepend() {' >> "$EUD/elfutils_0.148.bb"
           echo '    find ${S} -name Makefile.in -o -name configure | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
+          echo 'do_compile_prepend() {' >> "$EUD/elfutils_0.148.bb"
+          echo '    find ${S} -name Makefile | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
+          echo '}' >> "$EUD/elfutils_0.148.bb"
           echo '}' >> "$EUD/elfutils_0.148.bb"
           # perl-native 5.14.2: current_saltbits αφαιρέθηκε από modern glibc
           PRD=src/apps_proc/oe-core/meta/recipes-devtools/perl
