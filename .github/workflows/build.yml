@@ -139,6 +139,7 @@ jobs:
           GCCD=src/apps_proc/oe-core/meta/recipes-devtools/gcc
           sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
           sed -i 's|^S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/${BRANCH}"|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^B = "${WORKDIR}/${BRANCH}/build.${HOST_SYS}.${TARGET_SYS}"|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' "$GCCD/gcc-4.6.inc"
           # miniupnpd: αφαίρεση missing 'data' dependency
@@ -160,6 +161,9 @@ jobs:
           # αφαίρεση ΟΛΩΝ των παλιών patches — vanilla 4.6.4
           sed -i '/^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
           grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
+          # elfutils 0.148: gcc 9+ missing-attributes warning ως error
+          EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
+          echo 'CFLAGS += "-Wno-missing-attributes"' >> "$EUD/elfutils_0.148.bb"
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
@@ -308,6 +312,7 @@ jobs:
           echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
           echo 'PREFERRED_VERSION_gzip-native = "1.13"' >> conf/local.conf
           echo 'PREFERRED_VERSION_gzip = "1.13"' >> conf/local.conf
+          echo 'EXTRA_OECONF_append = " --disable-nls"' >> conf/local.conf
           find downloads -type f -size 0 -delete 2>/dev/null
           grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
           echo "===== PARSE PROBE (single-threaded, deterministic) ====="
@@ -361,6 +366,9 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed libxml2-2.7.8.tar.gz 8127a65e8c3b08856093099b52599c86 \
+            https://download.gnome.org/sources/libxml2/2.7/libxml2-2.7.8.tar.gz \
+            https://sources.openembedded.org/libxml2-2.7.8.tar.gz
           seed git-1.7.7.tar.gz 5d645884e688921e773186783b65ce33 \
             https://www.kernel.org/pub/software/scm/git/git-1.7.7.tar.gz \
             https://sources.openembedded.org/git-1.7.7.tar.gz
