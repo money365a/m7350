@@ -140,6 +140,9 @@ jobs:
           sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
+          echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
           sed -i 's|^S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/${BRANCH}"|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^B = "${WORKDIR}/${BRANCH}/build.${HOST_SYS}.${TARGET_SYS}"|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' "$GCCD/gcc-4.6.inc"
           # miniupnpd: αφαίρεση missing 'data' dependency
@@ -167,6 +170,11 @@ jobs:
           echo 'do_configure_prepend() {' >> "$EUD/elfutils_0.148.bb"
           echo '    find ${S} -name Makefile.in -o -name configure | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
           echo '}' >> "$EUD/elfutils_0.148.bb"
+          # perl-native 5.14.2: current_saltbits αφαιρέθηκε από modern glibc
+          PRD=src/apps_proc/oe-core/meta/recipes-devtools/perl
+          echo 'do_compile_prepend() {' >> "$PRD/perl-native_5.14.2.bb"
+          echo '    sed -i "/current_saltbits/d" ${S}/pp.c || true' >> "$PRD/perl-native_5.14.2.bb"
+          echo '}' >> "$PRD/perl-native_5.14.2.bb"
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
@@ -376,6 +384,9 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed elfutils-0.148.tar.bz2 a0bed1130135f17ad27533b0034dba8d \
+            https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2 \
+            https://sources.openembedded.org/elfutils-0.148.tar.bz2
           seed binutils-2.22.tar.bz2 ee0f10756c84979622b992a4a61ea3f5 \
             https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2 \
             https://sources.openembedded.org/binutils-2.22.tar.bz2
