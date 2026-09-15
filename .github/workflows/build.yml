@@ -182,7 +182,7 @@ jobs:
             echo '}'
             echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504 file://gzip.h;firstline=8;endline=20;md5=5a78e7654c2417610e2a883c0f0c6947"'
           echo 'do_compile_prepend() {' >> "$GZD/gzip_1.12.bb"
-          echo '    mkdir -p ${S}/sys ${B}/sys' >> "$GZD/gzip_1.12.bb"
+          echo '    mkdir -p ${S}/lib/sys ${S}/sys ${B}/lib/sys' >> "$GZD/gzip_1.12.bb"
           echo '    touch ${S}/aclocal.m4 ${S}/configure ${S}/config.h.in ${S}/Makefile.in ${S}/Makefile' >> "$GZD/gzip_1.12.bb"
           echo '}' >> "$GZD/gzip_1.12.bb"
           } > "$GZD/gzip_1.12.bb"
@@ -376,6 +376,9 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed binutils-2.22.tar.bz2 ee0f10756c84979622b992a4a61ea3f5 \
+            https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2 \
+            https://sources.openembedded.org/binutils-2.22.tar.bz2
           seed argparse-1.2.1.tar.gz 2fbef8cb61e506c706957ab6e135840c \
             https://sources.openembedded.org/argparse-1.2.1.tar.gz \
             http://deb.debian.org/debian/pool/main/p/python-argparse/python-argparse_1.2.1.orig.tar.gz
