@@ -192,17 +192,10 @@ jobs:
           echo '}' >> "$PRD/perl-native_5.14.2.bb"
           # opkg_svn: googlecode svn νεκρό — rewrite σε tarball
           OPD=src/apps_proc/oe-core/meta/recipes-devtools/opkg
-        sed -i 's|^SRC_URI = "svn://opkg.googlecode.com/svn;module=trunk;proto=http"|SRC_URI = "https://sources.openembedded.org/opkg-0.1.8.tar.gz"|' "$OPD/opkg_svn.bb"
-        sed -i 's|^S = .*|S = "${WORKDIR}/opkg-0.1.8"|' "$OPD/opkg_svn.bb"
-        sed -i '/^SRCREV/d' "$OPD/opkg_svn.bb"
-        grep -n "SRC_URI\|^S" "$OPD/opkg_svn.bb" | head -3
-          # opkg-utils_svn: openmoko svn νεκρό — kernel.org tarball
-        sed -i 's|svn://svn.openmoko.org/trunk/src/host/;module=opkg-utils;proto=http|https://sources.openembedded.org/opkg-utils_svn-0.1.8.tar.gz|' "$OPD/../opkg-utils/opkg-utils_svn.bb" 2>/dev/null || true
-        sed -i 's|svn://svn.openmoko.org/trunk/src/host/;module=opkg-utils;proto=http|https://sources.openembedded.org/opkg-utils_svn-0.1.8.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb 2>/dev/null || true
-          # libxml-parser-perl: cpan URL — openembedded mirror
-        sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://sources.openembedded.org/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb 2>/dev/null || true
-          # rpm: rpm5.org νεκρό — openembedded src.rpm
-        sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm|https://sources.openembedded.org/rpm-5.4.0-0.20101229.src.rpm|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb 2>/dev/null || true
+          sed -i 's|svn://opkg.googlecode.com/svn;module=trunk;proto=http|https://sources.openembedded.org/opkg-0.1.8.tar.gz|; s|^S = .*|S = "${WORKDIR}/opkg-0.1.8"|; /^SRCREV/d' "$OPD/opkg_svn.bb"
+          sed -i 's|svn://svn.openmoko.org/trunk/src/host/;module=opkg-utils;proto=http|https://sources.openembedded.org/opkg-utils_svn-0.1.8.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://sources.openembedded.org/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb
+          sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm|https://sources.openembedded.org/rpm-5.4.0-0.20101229.src.rpm|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
@@ -277,7 +270,7 @@ jobs:
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils_2.22.bb"
-          echo 'CFLAGS += "-Wno-error=unused-value -Wno-error=statement-before-decl"' >> "$BUD/binutils_2.22.bb"
+          echo 'CFLAGS += "-Wno-error=unused-value"' >> "$BUD/binutils_2.22.bb"
           echo 'do_compile_prepend() {' >> "$BUD/binutils_2.22.bb"
           echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils_2.22.bb"
           echo '}' >> "$BUD/binutils_2.22.bb"
@@ -287,8 +280,8 @@ jobs:
           echo '}' >> "$BUD/binutils-cross_2.22.bb"
           # gettext-native 0.18.1.1: gnulib gets fix
           GTD=src/apps_proc/oe-core/meta/recipes-core/gettext
-        echo 'do_compile_prepend() {' >> "$GTD/gettext_0.18.1.1.bb"
-          echo '    for f in $(find ${S} -name stdio.h -path "*gnulib*"); do sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" $f 2>/dev/null || true; done' >> "$GTD/gettext_0.18.1.1.bb"
+          echo 'do_compile_prepend() {' >> "$GTD/gettext_0.18.1.1.bb"
+          echo '    find ${S} -name stdio.h -path "*gnulib*" | xargs -r sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" || true' >> "$GTD/gettext_0.18.1.1.bb"
           echo '}' >> "$GTD/gettext_0.18.1.1.bb"
           # openssl-native: perlpath.pl require find.pl — modern perl χρειάζεται PERL5LIB
           OSD=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
@@ -383,14 +376,12 @@ jobs:
           fi
           tail -10 "$WSDIR/parse.log"
           echo "===== XGCC SANITY TEST ====="
-          XGCC=$(find tmp-eglibc/sysroots/x86_64-linux -name "arm-oe-linux-gnueabi-gcc*" -type f 2>/dev/null | grep -v objcopy | head -2)
-          echo "xgcc candidates: $XGCC"
           XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
           echo "xgcc: $XG"
           if [ -n "$XG" ]; then
             echo 'int main(){return 0;}' > /tmp/t.c
-            "$XG" -c /tmp/t.c -o /tmp/t.o 2>&1 | head -10
-            echo "xgcc exit: $?"
+            "$XG" -c /tmp/t.c -o /tmp/t.o 2>&1 | head -8
+            echo "xgcc test exit: $?"
           fi
           echo "===== PRE-SEED MISSING DOWNLOADS ====="
           seed() {
