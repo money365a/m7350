@@ -163,7 +163,10 @@ jobs:
           grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
           # elfutils 0.148: gcc 9+ missing-attributes warning ως error
           EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
-          echo 'CFLAGS += "-Wno-missing-attributes"' >> "$EUD/elfutils_0.148.bb"
+          echo 'CFLAGS += "-Wno-missing-attributes -Wno-error=missing-attributes"' >> "$EUD/elfutils_0.148.bb"
+          echo 'do_configure_prepend() {' >> "$EUD/elfutils_0.148.bb"
+          echo '    find ${S} -name Makefile.in -o -name configure | xargs -r sed -i s/-Werror//g' >> "$EUD/elfutils_0.148.bb"
+          echo '}' >> "$EUD/elfutils_0.148.bb"
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
@@ -177,8 +180,7 @@ jobs:
             echo 'do_configure_prepend() {'
             echo '    sed -i "/AM_GNU_GETTEXT/d" ${S}/configure.ac'
             echo '}'
-            echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=1ebbd3e34237af26da5dc08a4e440464 \\'
-            echo '                    file://gzip.h;firstline=8;endline=20;md5=0716fa9c9c0f74cff92d2d552bd60eb9"'
+            echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=1ebbd3e34237af26da5dc08a4e440464 file://gzip.h;firstline=8;endline=20;md5=0716fa9c9c0f74cff92d2d552bd60eb9"'
           } > "$GZD/gzip_1.13.bb"
           # ncurses 5.9: MKlib_gen.sh της 6.0 (gcc>=5 -P preprocessor workaround)
           NCD=src/apps_proc/oe-core/meta/recipes-core/ncurses
@@ -370,6 +372,9 @@ jobs:
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
           seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
             https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
+          seed argparse-1.2.1.tar.gz 2fbef8cb61e506c706957ab6e135840c \
+            https://sources.openembedded.org/argparse-1.2.1.tar.gz \
+            http://deb.debian.org/debian/pool/main/p/python-argparse/python-argparse_1.2.1.orig.tar.gz
           seed libxml2-2.7.8.tar.gz 8127a65e8c3b08856093099b52599c86 \
             https://download.gnome.org/sources/libxml2/2.7/libxml2-2.7.8.tar.gz \
             https://sources.openembedded.org/libxml2-2.7.8.tar.gz
