@@ -257,6 +257,10 @@ jobs:
           echo '}' >> "$OSD/openssl_1.0.0f.bb"
           # loc-api: αφαίρεση qmi-framework (δεν υπάρχει στο GPL)
           sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
+          # openssl.inc: φίλε το EXTRA_OECONF από το Configure (αυστηρό script, χokoσε το --disable-nls)
+          OSD2=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
+          sed -i 's/perl ./Configure \${EXTRA_OECONF} shared/perl ./Configure shared/' "$OSD2/openssl.inc"
+          grep -n 'perl ./Configure' "$OSD2/openssl.inc"
           grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
           # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
           printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
