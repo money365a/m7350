@@ -133,7 +133,7 @@ jobs:
           echo 'BB_NUMBER_PARSE_THREADS = "1"' >> build/conf/local.conf
           echo 'INHERIT_remove = "sanity"' >> build/conf/local.conf
 
-          sed -i '/Do not use Bitbake as root/d' meta/classes/sanity.bbclass 2>/dev/null
+          sed -i '/Do not use Bitbake as root/d' ../meta/classes/sanity.bbclass 2>/dev/null
           bitbake -p > ../parse.log 2>&1
           echo "parse exit=$?"
           if grep -q "^ERROR" ../parse.log; then
