@@ -6,188 +6,53 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     container:
-      image: ubuntu:18.04
+      image: ubuntu:14.04
     timeout-minutes: 350
 
     steps:
-      - name: Install build tools
+      - name: Install build dependencies
         shell: bash
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
-          apt-get install -y build-essential gcc-multilib g++-multilib \
+          apt-get install -y \
+            build-essential gcc-multilib g++-multilib \
             libncurses5-dev flex bison gawk gettext texinfo texi2html \
             unzip rsync cpio file wget curl subversion \
-            libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath \
-            zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 \
-            git python-minimal autoconf automake libtool \
-            intltool libglib2.0-dev openssh-client sudo \
-            libxml2-dev pkg-config help2man
+            libffi-dev libreadline-dev libbz2-dev libsqlite3-dev \
+            diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 \
+            xz-utils bzip2 git python-minimal autoconf automake \
+            libtool intltool libglib2.0-dev openssh-client sudo \
+            libxml2-dev pkg-config help2man make gcc g++
 
       - name: Download GPL source
         shell: bash
         run: |
-          URL1="https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz"
-          URL2="https://archive.org/download/tp-link-gpl-source/Home/Mobile%20Wi-Fi/M7350/M7350v3_en_gpl.tar.gz"
-          wget --tries=2 -c "$URL1" -O gpl.tar.gz || wget -c "$URL2" -O gpl.tar.gz
-          md5sum gpl.tar.gz
+          wget --tries=2 "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
           echo "0337a736e30cb11f83161bc15d53fac5  gpl.tar.gz" | md5sum -c -
 
       - name: Extract source tree
         shell: bash
         run: |
           mkdir -p src
-          tar -xzf gpl.tar.gz -C src 2> tar-errors.txt || true
+          tar -xzf gpl.tar.gz -C src
           echo "files: $(find src -type f | wc -l)"
           du -sh src
 
-      - name: Apply all patches/fixes
-        shell: bash
-        run: |
-          set +e
-          cd src/apps_proc/oe-core
-
-          # gcc-4.6.inc: tarballs from ftp.gnu.org
-          GCCD=meta/recipes-devtools/gcc
-          sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^S = .*|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^B = .*|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp \\|' "$GCCD/gcc-4.6.inc"
-          { echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"'
-            echo 'SRC_URI[gcccore.sha256sum] = "48b566f1288f099dff8fba868499a320f83586245ec69b8c82a9042566a5bf62"'
-            echo 'SRC_URI[gccgpp.md5sum] = "7fa36715b57a2cb9bfc66bac4ecb1b84"'
-            echo 'SRC_URI[gccgpp.sha256sum] = "4eaa347f9cd3ab7d5e14efbb9c5c03009229cd714b558fc55fa56e8996b74d42"'
-          } >> "$GCCD/gcc-4.6.inc"
-          sed -i '/file:\/\/.*uclibc/d; /gcc-flags-for-build.patch/d; /^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
-          echo 'CFLAGS_append = " -fno-strict-aliasing -fno-delete-null-pointer-checks"' >> "$GCCD/gcc-4.6.inc"
-          echo 'do_compile() {' > "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
-
-          # site.conf: remove dead mirrors
-          sed -i '42,52d' meta-msm/conf/site.conf 2>/dev/null || true
-
-          # tar -ps fix
-          for f in staging package libc-package sourcepkg; do
-            sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/classes/$f.bbclass 2>/dev/null
-          done
-          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/lib/oe/path.py 2>/dev/null
-
-          # samba fix
-          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb 2>/dev/null
-
-          # tp-link-common stub
-          echo '# stub' > meta-msm/classes/tp-link-common.bbclass 2>/dev/null
-
-          # eglibc: launchpad tarballs
-          EGD=meta/recipes-core/eglibc
-          sed -i 's|svn://www.eglibc.org/svn/branches/;module=${EGLIBC_BRANCH};proto=http \\|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\|' "$EGD/eglibc_2.13.bb"
-          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' "$EGD/eglibc_2.13.bb"
-          sed -i '/^PR_append = "+svnr/d' "$EGD/eglibc_2.13.bb"
-          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> "$EGD/eglibc_2.13.bb"
-          sed -i 's|svn://www.eglibc.org/svn/branches/;module=${EGLIBC_BRANCH};proto=http |https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz |' "$EGD/cross-localedef-native_2.13.bb"
-          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/localedef"|S = "${WORKDIR}/eglibc-2.12.1/localedef"|' "$EGD/cross-localedef-native_2.13.bb"
-          sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' "$EGD/cross-localedef-native_2.13.bb"
-          sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' "$EGD/cross-localedef-native_2.13.bb"
-
-          # various dependency fixes
-          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
-          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' meta-msm/recipes/alsa-intf/alsa-intf_git.bb
-          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' meta-msm/recipes/loc-api/loc-api_git.bb
-          sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' meta-msm/recipes/hostap/hostap_git.bb
-          sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
-          sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
-          sed -i '/kernel-tests \\/d' meta-msm/recipes/images/mdm-bootimg.inc
-
-          # bzip2/elfutils URL fix
-          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' meta/recipes-devtools/elfutils/elfutils_0.148.bb
-
-          # git-native from kernel.org
-          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta/recipes-devtools/git/git_1.7.7.bb 2>/dev/null
-          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta-msm/recipes/git/git-native_1.7.7.bb 2>/dev/null
-
-          # gettext gets fix
-          find meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \; 2>/dev/null
-
-          # gzip 1.12
-          GZD=meta/recipes-extended/gzip
-          { echo 'require gzip.inc'
-            echo 'PR = "r0"'
-            echo 'BBCLASSEXTEND = "native"'
-            echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504 file://gzip.h;firstline=8;endline=20;md5=5a78e7654c2417610e2a883c0f0c6947"'
-            echo 'SRC_URI[md5sum] = "8d7e6332cf8f0443b682fbf41223e280"'
-            echo 'SRC_URI[sha256sum] = "5b4fb14d38314e09f2fc8a1c510e7cd540a3ea0e3eb9b0420046b82c3bf41085"'
-            echo 'do_compile_prepend() {'
-            echo '    mkdir -p ${S}/lib/sys ${S}/sys'
-            echo '    touch ${S}/aclocal.m4 ${S}/configure ${S}/config.h.in ${S}/Makefile.in ${S}/Makefile'
-            echo '}'
-          } > "$GZD/gzip_1.12.bb"
-
-          # perl current_saltbits fix
-          PRD=meta/recipes-devtools/perl
-          echo 'do_compile_prepend() {' > "$PRD/perl_5.14.2.fix"
-          echo '    sed -i "/current_saltbits/d" ${S}/pp.c || true' >> "$PRD/perl_5.14.2.fix"
-          echo '}' >> "$PRD/perl_5.14.2.fix"
-          cat "$PRD/perl_5.14.2.fix" >> "$PRD/perl-native_5.14.2.bb" 2>/dev/null
-          cat "$PRD/perl_5.14.2.fix" >> "$PRD/perl_5.14.2.bb" 2>/dev/null
-          rm -f "$PRD/perl_5.14.2.fix"
-
-          # ncurses without c++
-          NCD=meta/recipes-core/ncurses
-          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> "$NCD/ncurses_5.9.bb"
-
-          # binutils MAKEINFO
-          BUD=meta/recipes-devtools/binutils
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils_2.22.bb"
-
-          # m4 1.4.19
-          M4D=meta/recipes-devtools/m4
-          cp "$M4D/m4-1.4.16.inc" "$M4D/m4-1.4.19.inc"
-          sed -i 's/^PR = "r2"/PR = "r0"/' "$M4D/m4-1.4.19.inc"
-          sed -i '/ac_config_links/d' "$M4D/m4-1.4.19.inc"
-          sed -i 's/d32239bcb673463ab874e80d47fae504/1ebbd3e34237af26da5dc08a4e440464/' "$M4D/m4-1.4.19.inc"
-          sed -i 's/fbc986d45b3dae6725c29870dd6b669d/4031593b2166d6c47cae282d944a7ede/' "$M4D/m4-1.4.19.inc"
-          sed -i 's|^SRC_URI\[md5sum\].*|SRC_URI[md5sum] = "f4a2b0284d80353b995f8ef2385ed73c"|' "$M4D/m4-1.4.19.inc"
-          sed -i 's|^SRC_URI\[sha256sum\].*|SRC_URI[sha256sum] = "3be4a26d825ffdfda52a56fc43246456989a3630093cced3fbddf4771ee58a70"|' "$M4D/m4-1.4.19.inc"
-          cp "$M4D/m4-native_1.4.16.bb" "$M4D/m4-native_1.4.19.bb"
-          echo 'do_configure_prepend() {' >> "$M4D/m4-native_1.4.19.bb"
-          echo '    sed -i "/AM_GNU_GETTEXT/d" ${S}/configure.ac' >> "$M4D/m4-native_1.4.19.bb"
-          echo '}' >> "$M4D/m4-native_1.4.19.bb"
-          echo 'EXTRA_OECONF += "--disable-nls"' >> "$M4D/m4-native_1.4.19.bb"
-
-          cd ../..
-
-      - name: Build
+      - name: Build with TP-Link procedure
         shell: bash
         run: |
           cd src/apps_proc/oe-core
-          . build/conf/set_bb_env.sh > init.log 2>&1 || true
-          cd build 2>/dev/null || true
-          sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs"/' conf/local.conf
-          sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
-          grep -q "^DDR_SIZE" conf/local.conf || echo 'DDR_SIZE = "512M"' >> conf/local.conf
-          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> conf/local.conf
+          . build/conf/set_bb_env.sh
 
-          bitbake -p > ../parse.log 2>&1
-          echo "parse exit=$?"
-          if grep -q "^ERROR" ../parse.log; then
-            echo "PARSE FAILED"
-            tail -30 ../parse.log
-            exit 1
-          fi
-
-          bitbake -k mdm-image > ../bitbake-mdm.log 2>&1
+          # TP-Link's build9625 procedure
+          export MACHINE=mdm9625
+          bitbake mdm-image
           echo "mdm-image exit=$?"
-          tail -40 ../bitbake-mdm.log
 
-          bitbake -k mdm-recovery-image > ../bitbake-recovery.log 2>&1
-          echo "recovery exit=$?"
-
+          # Deployed images
           echo "===== DEPLOYED IMAGES ====="
-          find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
+          find ${TOPDIR}/tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
 
       - name: Upload logs and images
         uses: actions/upload-artifact@v4
@@ -195,10 +60,6 @@ jobs:
           name: m7350-v3-build-output
           path: |
             init.log
-            parse.log
-            bitbake-mdm.log
-            bitbake-recovery.log
-            tar-errors.txt
             src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
