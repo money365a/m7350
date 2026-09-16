@@ -109,7 +109,7 @@ jobs:
           M4D=meta/recipes-devtools/m4
           echo 'do_compile_prepend() {' >> "$M4D/m4-native_1.4.16.bb"
           echo '    for f in ${S}/lib/stdio.h ${B}/lib/stdio.h; do' >> "$M4D/m4-native_1.4.16.bb"
-          echo '        [ -f $f ] && sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" $f 2>/dev/null || true' >> "$M4D/m4-native_1.4.16.bb"
+          echo '        [ -f $f ] && sed -i "/GL_WARN_ON_USE.*gets/d; /undef gets/d" $f 2>/dev/null || true' >> "$M4D/m4-native_1.4.16.bb"
           echo '    done' >> "$M4D/m4-native_1.4.16.bb"
           echo '}' >> "$M4D/m4-native_1.4.16.bb"
           chown -R builder:builder /__w/m7350/m7350
