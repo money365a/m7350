@@ -62,7 +62,15 @@ jobs:
           echo '}' >> "$M4D/m4-native_1.4.16.bb"
           chown -R builder:builder /home/builder
 
+          # automake: skip info docs
+          AMD=$OE/meta/recipes-devtools/automake
+          echo 'do_configure_append() {' >> "$AMD/automake_1.11.2.bb"
+          echo '    printf "all:\ninstall:\nclean:\ndistclean:\ncheck:\n" > ${S}/doc/Makefile' >> "$AMD/automake_1.11.2.bb"
+          echo '}' >> "$AMD/automake_1.11.2.bb"
+
       - name: Build
+        shell: bash
+        run: |
         shell: bash
         run: |
           # Pre-download critical sources that have dead URLs
