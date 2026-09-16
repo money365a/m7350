@@ -86,6 +86,22 @@ jobs:
           # flex (dead sourceforge URL)
           wget -q "https://sources.openembedded.org/flex-2.5.35.tar.bz2" -O $DL/flex-2.5.35.tar.bz2
           touch $DL/flex-2.5.35.tar.bz2.done
+          # gcc tarballs (critical for cross compiler)
+          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" -O $DL/gcc-core-4.6.4.tar.bz2
+          touch $DL/gcc-core-4.6.4.tar.bz2.done
+          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" -O $DL/gcc-g++-4.6.4.tar.bz2
+          touch $DL/gcc-g++-4.6.4.tar.bz2.done
+          # eglibc
+          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" -O $DL/eglibc_2.13.orig.tar.gz
+          touch $DL/eglibc_2.13.orig.tar.gz.done
+          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" -O $DL/eglibc_2.12.1.orig.tar.gz
+          touch $DL/eglibc_2.12.1.orig.tar.gz.done
+          # binutils
+          wget -q "https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2" -O $DL/binutils-2.22.tar.bz2
+          touch $DL/binutils-2.22.tar.bz2.done
+          # libmpc
+          wget -q "https://ftp.gnu.org/gnu/mpc/mpc-0.8.2.tar.gz" -O $DL/mpc-0.8.2.tar.gz
+          touch $DL/mpc-0.8.2.tar.gz.done
           chown -R builder:builder $DL
           su - builder -c '
           cd /home/builder/src/apps_proc/oe-core
