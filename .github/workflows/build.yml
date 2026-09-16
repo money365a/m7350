@@ -122,10 +122,10 @@ jobs:
           cd $GITHUB_WORKSPACE/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
           export MACHINE=mdm9625
-          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> build/conf/local.conf
-          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> build/conf/local.conf
-          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> build/conf/local.conf
-          echo 'INHERIT_remove = "sanity"' >> build/conf/local.conf
+          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
+          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
+          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> conf/local.conf
+          echo 'INHERIT_remove = "sanity"' >> conf/local.conf
 
           bitbake -p > $GITHUB_WORKSPACE/parse.log 2>&1
           echo "parse exit=$?"
