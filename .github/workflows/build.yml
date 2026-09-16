@@ -51,6 +51,15 @@ jobs:
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils_2.22.bb
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils-cross_2.22.bb
           echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
+          # m4 1.4.16 gnulib gets fix (target the template so generated stdio.h is clean)
+          find $OE/meta/recipes-devtools/m4 -name "*.bb" -exec grep -l "m4" {} \; | head -1 > /dev/null
+          M4D=$OE/meta/recipes-devtools/m4
+          echo 'do_configure_prepend() {' >> "$M4D/m4-native_1.4.16.bb"
+          echo '    find ${S} -name "stdio.in.h" -exec sed -i "/_GL_WARN_ON_USE (gets/d; /undef gets/d" {} \;' >> "$M4D/m4-native_1.4.16.bb"
+          echo '}' >> "$M4D/m4-native_1.4.16.bb"
+          echo 'do_configure_append() {' >> "$M4D/m4-native_1.4.16.bb"
+          echo '    for f in $(find ${S} -name "stdio.h" -path "*/lib/*"); do sed -i "/_GL_WARN_ON_USE (gets/d; /undef gets/d" $f 2>/dev/null; done' >> "$M4D/m4-native_1.4.16.bb"
+          echo '}' >> "$M4D/m4-native_1.4.16.bb"
           chown -R builder:builder /home/builder
 
       - name: Build
