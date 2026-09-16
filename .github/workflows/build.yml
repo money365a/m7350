@@ -11,6 +11,7 @@ jobs:
 
     steps:
       - name: Install build tools
+        shell: bash
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
@@ -24,6 +25,7 @@ jobs:
             libxml2-dev pkg-config help2man
 
       - name: Download GPL source
+        shell: bash
         run: |
           URL1="https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz"
           URL2="https://archive.org/download/tp-link-gpl-source/Home/Mobile%20Wi-Fi/M7350/M7350v3_en_gpl.tar.gz"
@@ -32,6 +34,7 @@ jobs:
           echo "0337a736e30cb11f83161bc15d53fac5  gpl.tar.gz" | md5sum -c -
 
       - name: Extract source tree
+        shell: bash
         run: |
           mkdir -p src
           tar -xzf gpl.tar.gz -C src 2> tar-errors.txt || true
@@ -39,6 +42,7 @@ jobs:
           du -sh src
 
       - name: Apply all patches/fixes
+        shell: bash
         run: |
           set +e
           cd src/apps_proc/oe-core
@@ -157,6 +161,7 @@ jobs:
           cd ../..
 
       - name: Build
+        shell: bash
         run: |
           cd src/apps_proc/oe-core
           . build/conf/set_bb_env.sh > init.log 2>&1 || true
