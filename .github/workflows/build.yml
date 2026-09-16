@@ -142,6 +142,9 @@ jobs:
           sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
+          echo 'CFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fno-delete-null-pointer-checks"' >> "$GCCD/gcc-4.6.inc"
+          echo 'CXXFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fpermissive"' >> "$GCCD/gcc-4.6.inc"
+          echo 'LDFLAGS_append = " -Wl,--allow-multiple-definition"' >> "$GCCD/gcc-4.6.inc"
           echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
@@ -194,21 +197,21 @@ jobs:
           echo 'require opkg.inc' > "$OPD/opkg_svn.bb"
           echo 'DESCRIPTION = "Opkg Package Manager"' >> "$OPD/opkg_svn.bb"
           echo 'DEPENDS = "curl-native"' >> "$OPD/opkg_svn.bb"
-          echo 'SRC_URI = "https://sources.openembedded.org/opkg-0.1.8.tar.gz"' >> "$OPD/opkg_svn.bb"
+          echo 'SRC_URI = "http://git.yoctoproject.org/cgit/cgit.cgi/opkg/snapshot/opkg-0.1.8.tar.gz"' >> "$OPD/opkg_svn.bb"
           echo 'S = "${WORKDIR}/opkg-0.1.8"' >> "$OPD/opkg_svn.bb"
           echo 'BBCLASSEXTEND = "native"' >> "$OPD/opkg_svn.bb"
           echo 'DESCRIPTION = "OPKG Package Manager Utilities"' > src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'LICENSE = "GPLv2+"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=94d55d512a9ba36caa9b7df079bae19f"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'SRC_URI = "https://sources.openembedded.org/opkg-utils-0.1.8.tar.bz2"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'SRC_URI = "http://git.yoctoproject.org/cgit/cgit.cgi/opkg-utils/snapshot/opkg-utils-0.1.8.tar.gz"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'S = "${WORKDIR}/opkg-utils"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'do_install() {' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo '    install -d ${D}${bindir}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo '    install -m 0755 ${S}/opkg.py ${D}${bindir}/' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo '}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'BBCLASSEXTEND = "native"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://sources.openembedded.org/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb
-          sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm|https://sources.openembedded.org/rpm-5.4.0-0.20101229.src.rpm|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb
+          sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://cpan.metacpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb
+          sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm;extract=rpm-5.4.0.tar.gz|https://sources.openembedded.org/rpm-5.4.0.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
@@ -389,6 +392,21 @@ jobs:
           fi
           tail -10 "$WSDIR/parse.log"
           echo "===== XGCC SANITY TEST ====="
+          XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
+          echo "xgcc: $XG"
+          if [ -n "$XG" ] && [ -x "$XG" ]; then
+            echo 'int main(){return 0;}' > /tmp/t.c
+            echo "--- test compile ---"
+            "$XG" -v -c /tmp/t.c -o /tmp/t.o 2>&1 | tail -20
+            RC=$?
+            echo "xgcc exit: $RC"
+            ls -la /tmp/t.o 2>/dev/null
+            echo "--- test preprocess ---"
+            "$XG" -E /tmp/t.c 2>&1 | tail -5
+          else
+            echo "xgcc NOT FOUND — gcc-cross-initial may not have run"
+          fi
+          echo "===== END XGCC ====="
           XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
           echo "xgcc: $XG"
           if [ -n "$XG" ]; then
