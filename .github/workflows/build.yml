@@ -76,6 +76,14 @@ jobs:
           mkdir -p $DL
           wget -q "https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" -O $DL/pseudo-1.2.tar.bz2
           touch $DL/pseudo-1.2.tar.bz2.done
+          # zlib (dead URL http://www.zlib.net/zlib-1.2.5.tar.bz2) - recipe expects .tar.bz2
+          wget -q "https://zlib.net/fossils/zlib-1.2.5.tar.gz" -O /tmp/zlib_tmp.gz
+          gunzip -c /tmp/zlib_tmp.gz | bzip2 > $DL/zlib-1.2.5.tar.bz2
+          rm -f /tmp/zlib_tmp.gz
+          echo "be1e89810e66150f5b0327984d8625a0  $DL/zlib-1.2.5.tar.bz2" | md5sum -c - && touch $DL/zlib-1.2.5.tar.bz2.done
+          # flex (dead sourceforge URL)
+          wget -q "https://sources.openembedded.org/flex-2.5.35.tar.bz2" -O $DL/flex-2.5.35.tar.bz2
+          touch $DL/flex-2.5.35.tar.bz2.done
           chown -R builder:builder $DL
           su - builder -c '
           cd /home/builder/src/apps_proc/oe-core
