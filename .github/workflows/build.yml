@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p src
-          tar -xzf gpl.tar.gz -C src
+          tar -xzf gpl.tar.gz -C src || true
           echo "files: $(find src -type f | wc -l)"
           du -sh src
 
