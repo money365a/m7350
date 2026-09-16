@@ -8,114 +8,195 @@ jobs:
     container:
       image: ubuntu:14.04
     timeout-minutes: 350
-
     steps:
-      - name: Setup
+      - name: Install deps
         shell: bash
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
-          apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git autoconf automake libtool intltool libglib2.0-dev sudo libxml2-dev pkg-config help2man make gawk
-          useradd -m builder
+          apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git autoconf automake libtool intltool libglib2.0-dev sudo libxml2-dev pkg-config help2man make gawk python2.7
+          ln -sf /usr/bin/python2.7 /usr/bin/python
           ln -sf /bin/bash /bin/sh
 
-      - name: Download and extract GPL
+      - name: Download and extract
         shell: bash
         run: |
-          wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O /tmp/gpl.tar.gz
-          echo "0337a736e30cb11f83161bc15d53fac5  /tmp/gpl.tar.gz" | md5sum -c -
-          mkdir -p /home/builder/src
-          tar -xzf /tmp/gpl.tar.gz -C /home/builder/src || true
-          echo "files: $(find /home/builder/src -type f | wc -l)"
-          chown -R builder:builder /home/builder
+          wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
+          echo "0337a736e30cb11f83161bc15d53fac5  gpl.tar.gz" | md5sum -c -
+          mkdir -p src
+          tar -xzf gpl.tar.gz -C src || true
+          echo "files: $(find src -type f | wc -l)"
 
-      - name: Apply build system fixes
+      - name: Fix and build
         shell: bash
         run: |
-          OE=/home/builder/src/apps_proc/oe-core
-          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' $OE/meta-msm/recipes/samba/samba_3.6.22.bb
-          echo '# stub' > $OE/meta-msm/classes/tp-link-common.bbclass
-          sed -i '42,52d' $OE/meta-msm/conf/site.conf 2>/dev/null
-          for f in staging package libc-package sourcepkg; do sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/classes/$f.bbclass; done
-          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/lib/oe/path.py
-          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' $OE/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
-          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' $OE/meta-msm/recipes/loc-api/loc-api_git.bb
-          sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' $OE/meta-msm/recipes/hostap/hostap_git.bb
-          sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' $OE/meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
-          sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' $OE/meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
-          sed -i '/kernel-tests \\/d' $OE/meta-msm/recipes/images/mdm-bootimg.inc
-          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' $OE/meta/recipes-devtools/elfutils/elfutils_0.148.bb
-          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta/recipes-devtools/git/git_1.7.7.bb
-          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta-msm/recipes/git/git-native_1.7.7.bb
-          find $OE/meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
-          grep -q '^LICENSE' $OE/meta/recipes-devtools/gcc/gcc-4.6.inc || echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> $OE/meta/recipes-devtools/gcc/gcc-4.6.inc
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils_2.22.bb
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils-cross_2.22.bb
-          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
-          # m4 1.4.16 gnulib gets fix (target the template so generated stdio.h is clean)
-          find $OE/meta/recipes-devtools/m4 -name "*.bb" -exec grep -l "m4" {} \; | head -1 > /dev/null
-          M4D=$OE/meta/recipes-devtools/m4
-          echo 'do_configure_prepend() {' >> "$M4D/m4-native_1.4.16.bb"
-          echo '    find ${S} -name "stdio.in.h" -exec sed -i "/_GL_WARN_ON_USE (gets/d; /undef gets/d" {} \;' >> "$M4D/m4-native_1.4.16.bb"
-          echo '}' >> "$M4D/m4-native_1.4.16.bb"
-          echo 'do_configure_append() {' >> "$M4D/m4-native_1.4.16.bb"
-          echo '    for f in $(find ${S} -name "stdio.h" -path "*/lib/*"); do sed -i "/_GL_WARN_ON_USE (gets/d; /undef gets/d" $f 2>/dev/null; done' >> "$M4D/m4-native_1.4.16.bb"
-          echo '}' >> "$M4D/m4-native_1.4.16.bb"
-          chown -R builder:builder /home/builder
+          set +e
+          export OE=$GITHUB_WORKSPACE/src/apps_proc/oe-core
+          cd $OE
 
-          # automake: skip info docs
-          AMD=$OE/meta/recipes-devtools/automake
-          echo 'do_configure_append() {' >> "$AMD/automake_1.11.2.bb"
-          echo '    printf "all:\ninstall:\nclean:\ndistclean:\ncheck:\n" > ${S}/doc/Makefile' >> "$AMD/automake_1.11.2.bb"
-          echo '}' >> "$AMD/automake_1.11.2.bb"
+          # Remove dead mirrors
+          sed -i '42,52d' meta-msm/conf/site.conf
+
+          # Fix tar -ps
+          for f in staging package libc-package sourcepkg; do
+            sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/classes/$f.bbclass
+          done
+          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/lib/oe/path.py
+
+          # Disable sanity root check
+          sed -i 's|bb.fatal("Do not use Bitbake as root.")|pass|' meta/classes/sanity.bbclass
+
+          # samba fix
+          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
+
+          # tp-link-common stub
+          echo '# stub' > meta-msm/classes/tp-link-common.bbclass
+
+          # Missing dep fixes
+          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' meta-msm/recipes/alsa-intf/alsa-intf_git.bb
+          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' meta-msm/recipes/loc-api/loc-api_git.bb
+          sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' meta-msm/recipes/hostap/hostap_git.bb
+          sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
+          sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
+          sed -i '/kernel-tests \\/d' meta-msm/recipes/images/mdm-bootimg.inc
+
+          # ncurses
+          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> meta/recipes-core/ncurses/ncurses_5.9.bb
+
+          # binutils
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> meta/recipes-devtools/binutils/binutils_2.22.bb
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> meta/recipes-devtools/binutils/binutils-cross_2.22.bb
+
+          # gettext gets fix
+          find meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
+
+          # elfutils URL
+          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' meta/recipes-devtools/elfutils/elfutils_0.148.bb
+
+          # git URL
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta/recipes-devtools/git/git_1.7.7.bb
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta-msm/recipes/git/git-native_1.7.7.bb
+
+          # automake docs fix
+          echo 'do_configure_append() {' >> meta/recipes-devtools/automake/automake_1.11.2.bb
+          echo '    printf "all:\ninstall:\nclean:\ndistclean:\ncheck:\n" > ${S}/doc/Makefile' >> meta/recipes-devtools/automake/automake_1.11.2.bb
+          echo '}' >> meta/recipes-devtools/automake/automake_1.11.2.bb
+
+          # m4 1.4.19 recipes (remove old)
+          rm -f meta/recipes-devtools/m4/m4-native_1.4.16.bb meta/recipes-devtools/m4/m4_1.4.16.bb meta/recipes-devtools/m4/m4-1.4.16.inc
+          rm -f meta/recipes-devtools/m4/m4-native_1.4.9.bb meta/recipes-devtools/m4/m4_1.4.9.bb meta/recipes-devtools/m4/m4-1.4.9.inc
+          M4D=meta/recipes-devtools/m4
+          echo 'require m4.inc' > $M4D/m4-1.4.19.inc
+          echo 'LICENSE = "GPLv3"' >> $M4D/m4-1.4.19.inc
+          echo 'PR = "r0"' >> $M4D/m4-1.4.19.inc
+          echo 'SRC_URI[md5sum] = "f4a2b0284d80353b995f8ef2385ed73c"' >> $M4D/m4-1.4.19.inc
+          echo 'SRC_URI[sha256sum] = "3be4a26d825ffdfda52a56fc43246456989a3630093cced3fbddf4771ee58a70"' >> $M4D/m4-1.4.19.inc
+          echo 'require m4-1.4.19.inc' > $M4D/m4-native_1.4.19.bb
+          echo 'inherit native' >> $M4D/m4-native_1.4.19.bb
+          echo 'INHIBIT_AUTOTOOLS_DEPS = "1"' >> $M4D/m4-native_1.4.19.bb
+          echo 'DEPENDS += "gnu-config-native"' >> $M4D/m4-native_1.4.19.bb
+
+          # gcc 4.6.4 recipe rewrite
+          GCCD=meta/recipes-devtools/gcc
+          echo 'require gcc-common.inc' > $GCCD/gcc-4.6.inc
+          echo 'PR = "r22"' >> $GCCD/gcc-4.6.inc
+          echo 'PV = "4.6.4"' >> $GCCD/gcc-4.6.inc
+          echo 'BINV = "4.6.4"' >> $GCCD/gcc-4.6.inc
+          echo 'DEPENDS =+ "mpfr gmp libmpc"' >> $GCCD/gcc-4.6.inc
+          echo 'NATIVEDEPS = "mpfr-native gmp-native libmpc-native"' >> $GCCD/gcc-4.6.inc
+          echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gcccore.sha256sum] = "48b566f1288f099dff8fba868499a320f83586245ec69b8c82a9042566a5bf62"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gccgpp.md5sum] = "7fa36715b57a2cb9bfc66bac4ecb1b84"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gccgpp.sha256sum] = "4eaa347f9cd3ab7d5e14efbb9c5c03009229cd714b558fc55fa56e8996b74d42"' >> $GCCD/gcc-4.6.inc
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $GCCD/gcc-4.6.inc
+          echo 'CFLAGS_append = " -fno-strict-aliasing"' >> $GCCD/gcc-4.6.inc
+          echo 'require gcc-cross-initial.inc' > $GCCD/gcc-cross-initial_4.6.bb
+          echo 'do_compile() {' >> $GCCD/gcc-cross-initial_4.6.bb
+          echo '    oe_runmake all-gcc' >> $GCCD/gcc-cross-initial_4.6.bb
+          echo '}' >> $GCCD/gcc-cross-initial_4.6.bb
+
+          # eglibc launchpad
+          EGD=meta/recipes-core/eglibc
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http \\\\|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\\\|" $EGD/eglibc_2.13.bb
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' $EGD/eglibc_2.13.bb
+          sed -i '/^PR_append = "+svnr/d' $EGD/eglibc_2.13.bb
+          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> $EGD/eglibc_2.13.bb
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http |https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz |" $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/localedef"|S = "${WORKDIR}/eglibc-2.12.1/localedef"|' $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' $EGD/cross-localedef-native_2.13.bb
+
+          # pseudo 1.9.0
+          PSD=meta/recipes-devtools/pseudo
+          echo 'require pseudo.inc' > $PSD/pseudo_1.9.0.bb
+          echo 'PR = "r0"' >> $PSD/pseudo_1.9.0.bb
+          echo 'SRC_URI = "http://downloads.yoctoproject.org/releases/pseudo/pseudo-1.9.0.tar.bz2"' >> $PSD/pseudo_1.9.0.bb
+          echo 'SRC_URI[md5sum] = "7ec8409bccdbd9c958367469b6059071"' >> $PSD/pseudo_1.9.0.bb
+          echo 'SRC_URI[sha256sum] = "a3f150cc55b2fa009c9411335981b55675ead4e5cb4a9c36ed40b32f81d020c1"' >> $PSD/pseudo_1.9.0.bb
+          echo 'CFLAGS += "-D_STAT_VER=1 -D_MKNOD_VER=1"' >> $PSD/pseudo_1.9.0.bb
+          echo 'do_compile_prepend_virtclass-native() {' >> $PSD/pseudo_1.9.0.bb
+          echo '    for f in $(find ${S}/ports -name "*.c"); do' >> $PSD/pseudo_1.9.0.bb
+          echo '        grep -q _STAT_VER $f && sed -i "1i #define _STAT_VER 1" $f || true' >> $PSD/pseudo_1.9.0.bb
+          echo '        grep -q _MKNOD_VER $f && sed -i "1i #define _MKNOD_VER 1" $f || true' >> $PSD/pseudo_1.9.0.bb
+          echo '    done' >> $PSD/pseudo_1.9.0.bb
+          echo '    sed -i "s/^} pseudo_access_t;\$/};/" ${S}/pseudo_ipc.h' >> $PSD/pseudo_1.9.0.bb
+          echo '}' >> $PSD/pseudo_1.9.0.bb
+
+          # Pre-download sources
+          DL=build/downloads
+          mkdir -p $DL
+          for entry in \
+            "pseudo-1.2.tar.bz2|https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" \
+            "pseudo-1.9.0.tar.bz2|http://downloads.yoctoproject.org/releases/pseudo/pseudo-1.9.0.tar.bz2" \
+            "gcc-core-4.6.4.tar.bz2|https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" \
+            "gcc-g++-4.6.4.tar.bz2|https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" \
+            "eglibc_2.13.orig.tar.gz|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" \
+            "eglibc_2.12.1.orig.tar.gz|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" \
+            "binutils-2.22.tar.bz2|https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2" \
+            "m4-1.4.19.tar.gz|https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz" \
+            "zlib-1.2.5.tar.bz2|https://zlib.net/fossils/zlib-1.2.5.tar.bz2" \
+            "flex-2.5.35.tar.bz2|https://sources.openembedded.org/flex-2.5.35.tar.bz2" \
+            "mpc-0.8.2.tar.gz|https://ftp.gnu.org/gnu/mpc/mpc-0.8.2.tar.gz" \
+            "autoconf-2.68.tar.bz2|https://ftp.gnu.org/gnu/autoconf/autoconf-2.68.tar.bz2" \
+            "automake-1.11.2.tar.gz|https://ftp.gnu.org/gnu/automake/automake-1.11.2.tar.gz" \
+            "quilt-0.50.tar.gz|https://download.savannah.gnu.org/releases/quilt/quilt-0.50.tar.gz" \
+            "sqlite-autoconf-3070900.tar.gz|https://www.sqlite.org/2012/sqlite-autoconf-3070900.tar.gz" \
+            "pkg-config-0.25.tar.gz|https://pkgconfig.freedesktop.org/releases/pkg-config-0.25.tar.gz" \
+            "libtool-2.4.2.tar.gz|https://ftp.gnu.org/gnu/libtool/libtool-2.4.2.tar.gz"; do
+            fname="${entry%%|*}"; url="${entry#*|}"
+            [ -f "$DL/$fname.done" ] && continue
+            echo "DL: $fname"
+            wget -q --timeout=60 "$url" -O "$DL/$fname" || true
+            [ -s "$DL/$fname" ] && touch "$DL/$fname.done" || rm -f "$DL/$fname"
+          done
+          echo "===== FIXES COMPLETE ====="
 
       - name: Build
         shell: bash
         run: |
-          set +e
-          # Pre-download critical sources that have dead URLs
-          DL=/home/builder/src/apps_proc/oe-core/build/downloads
-          mkdir -p $DL
-          wget -q "https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" -O $DL/pseudo-1.2.tar.bz2
-          touch $DL/pseudo-1.2.tar.bz2.done
-          # zlib (dead URL http://www.zlib.net/zlib-1.2.5.tar.bz2)
-          for zurl in "https://sources.openembedded.org/zlib-1.2.5.tar.bz2" "https://zlib.net/fossils/zlib-1.2.5.tar.bz2" "http://zlib.net/zlib-1.2.5.tar.bz2"; do
-            wget -q "$zurl" -O $DL/zlib-1.2.5.tar.bz2 && [ -s "$DL/zlib-1.2.5.tar.bz2" ] && break
-          done
-          touch $DL/zlib-1.2.5.tar.bz2.done
-          # flex (dead sourceforge URL)
-          wget -q "https://sources.openembedded.org/flex-2.5.35.tar.bz2" -O $DL/flex-2.5.35.tar.bz2
-          touch $DL/flex-2.5.35.tar.bz2.done
-          # gcc tarballs (critical for cross compiler)
-          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" -O $DL/gcc-core-4.6.4.tar.bz2
-          touch $DL/gcc-core-4.6.4.tar.bz2.done
-          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" -O $DL/gcc-g++-4.6.4.tar.bz2
-          touch $DL/gcc-g++-4.6.4.tar.bz2.done
-          # eglibc
-          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" -O $DL/eglibc_2.13.orig.tar.gz
-          touch $DL/eglibc_2.13.orig.tar.gz.done
-          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" -O $DL/eglibc_2.12.1.orig.tar.gz
-          touch $DL/eglibc_2.12.1.orig.tar.gz.done
-          # binutils
-          wget -q "https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2" -O $DL/binutils-2.22.tar.bz2
-          touch $DL/binutils-2.22.tar.bz2.done
-          # libmpc
-          wget -q "https://ftp.gnu.org/gnu/mpc/mpc-0.8.2.tar.gz" -O $DL/mpc-0.8.2.tar.gz
-          touch $DL/mpc-0.8.2.tar.gz.done
-          chown -R builder:builder $DL
-          su - builder -c '
-          cd /home/builder/src/apps_proc/oe-core
+          cd $GITHUB_WORKSPACE/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
           export MACHINE=mdm9625
-          echo "PREFERRED_VERSION_m4-native = \"1.4.19\"" >> build/conf/local.conf
-          echo "PREFERRED_VERSION_pseudo-native = \"1.9.0\"" >> build/conf/local.conf
-          echo "BB_NUMBER_PARSE_THREADS = \"1\"" >> build/conf/local.conf
-          echo "PREMIRRORS = \"http://.*/.* https://downloads.yoctoproject.org/mirror/sources/ \\n ftp://.*/.* https://downloads.yoctoproject.org/mirror/sources/\"" >> build/conf/local.conf
-          bitbake mdm-image
-          echo "mdm-image exit=$?"
-          echo "===== DEPLOYED IMAGES ====="
-          find ${TOPDIR}/tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
-          '
+          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> build/conf/local.conf
+          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> build/conf/local.conf
+          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> build/conf/local.conf
+          echo 'INHERIT_remove = "sanity"' >> build/conf/local.conf
+          echo 'PREMIRRORS = "http://.*/.* https://downloads.yoctoproject.org/mirror/sources/ \n ftp://.*/.* https://downloads.yoctoproject.org/mirror/sources/"' >> build/conf/local.conf
+
+          bitbake -p > ../parse.log 2>&1
+          echo "parse exit=$?"
+          if grep -q "^ERROR" ../parse.log; then
+            echo "PARSE FAILED"
+            tail -30 ../parse.log
+          else
+            bitbake -k mdm-image > ../bitbake-mdm.log 2>&1
+            echo "mdm-image exit=$?"
+            tail -40 ../bitbake-mdm.log
+            echo "===== DEPLOYED IMAGES ====="
+            find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
+          fi
 
       - name: Upload logs and images
         if: always()
@@ -123,6 +204,9 @@ jobs:
         with:
           name: m7350-v3-build-output
           path: |
-            /home/builder/src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
+            src/apps_proc/oe-core/parse.log
+            src/apps_proc/oe-core/bitbake-mdm.log
+            src/apps_proc/oe-core/init.log
+            src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
