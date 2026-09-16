@@ -105,6 +105,13 @@ jobs:
           NCD=meta/recipes-core/ncurses
           echo 'EXTRA_OECONF += "--without-cxx-binding"' >> "$NCD/ncurses_5.9.bb"
           echo '# stub' > meta-msm/classes/tp-link-common.bbclass
+          # m4 1.4.16 gnulib gets fix
+          M4D=meta/recipes-devtools/m4
+          echo 'do_compile_prepend() {' >> "$M4D/m4-native_1.4.16.bb"
+          echo '    for f in ${S}/lib/stdio.h ${B}/lib/stdio.h; do' >> "$M4D/m4-native_1.4.16.bb"
+          echo '        [ -f $f ] && sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" $f 2>/dev/null || true' >> "$M4D/m4-native_1.4.16.bb"
+          echo '    done' >> "$M4D/m4-native_1.4.16.bb"
+          echo '}' >> "$M4D/m4-native_1.4.16.bb"
           chown -R builder:builder /__w/m7350/m7350
 
       - name: Pre-download sources
