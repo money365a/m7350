@@ -147,6 +147,8 @@ jobs:
           echo 'export HOST_CFLAGS = "-O0 -fno-strict-aliasing"' >> "$GCCD/gcc-4.6.inc"
           echo 'CXXFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fpermissive"' >> "$GCCD/gcc-4.6.inc"
           echo 'LDFLAGS_append = " -Wl,--allow-multiple-definition"' >> "$GCCD/gcc-4.6.inc"
+          echo 'CFLAGS = "-O1 -fno-strict-aliasing -fno-delete-null-pointer-checks -fno-ipa-sra"' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo 'CXXFLAGS = "-O1 -fno-strict-aliasing -fpermissive"' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
@@ -194,6 +196,9 @@ jobs:
           echo 'do_compile_prepend() {' >> "$PRD/perl-native_5.14.2.bb"
           echo '    sed -i "/current_saltbits/d" ${S}/pp.c || true' >> "$PRD/perl-native_5.14.2.bb"
           echo '}' >> "$PRD/perl-native_5.14.2.bb"
+          # git-native: disable gettext QA
+          GITD=src/apps_proc/oe-core/meta-msm/recipes/git
+          echo 'EXTRA_OECONF += "--disable-nls"' >> "$GITD/git-native_1.7.7.bb"
           # opkg_svn: googlecode svn νεκρό — rewrite σε tarball
           OPD=src/apps_proc/oe-core/meta/recipes-devtools/opkg
           echo 'require opkg.inc' > "$OPD/opkg_svn.bb"
@@ -217,6 +222,9 @@ jobs:
           # lzo 2.06: configure fix
           LZD=src/apps_proc/oe-core/meta/recipes-support/lzo
           echo 'EXTRA_OECONF += "--disable-nls"' >> "$LZD/lzo_2.06.bb"
+          echo 'do_configure_prepend() {' >> "$LZD/lzo_2.06.bb"
+          echo '    find ${S} -name configure -exec sed -i s/-Werror//g {} \;' >> "$LZD/lzo_2.06.bb"
+          echo '}' >> "$LZD/lzo_2.06.bb"
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
