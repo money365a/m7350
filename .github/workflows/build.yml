@@ -6,27 +6,22 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     container:
-      image: ubuntu:14.04
+      image: ubuntu:18.04
     timeout-minutes: 350
 
     steps:
-      - name: Setup Ubuntu 14.04 (EOL repos + tools)
+      - name: Install build tools
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          sed -i 's|archive.ubuntu.com|old-releases.ubuntu.com|g; s|security.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list
           apt-get update
           apt-get install -y build-essential gcc-multilib g++-multilib \
             libncurses5-dev flex bison gawk gettext texinfo texi2html \
             unzip rsync cpio file wget curl subversion \
             libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath \
             zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 \
-            git python-software-properties autoconf automake libtool \
-            intltool libglib2.0-dev openssh-client sudo
-
-      - name: Disk space
-        run: |
-          df -h /
-          rm -rf /tmp/* || true
+            git python-minimal autoconf automake libtool \
+            intltool libglib2.0-dev openssh-client sudo \
+            libxml2-dev pkg-config help2man
 
       - name: Download GPL source
         run: |
@@ -48,7 +43,7 @@ jobs:
           set +e
           cd src/apps_proc/oe-core
 
-          # gcc-4.6.inc: tarballs από ftp.gnu.org, WITHOUT SVN
+          # gcc-4.6.inc: tarballs from ftp.gnu.org
           GCCD=meta/recipes-devtools/gcc
           sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
@@ -62,11 +57,12 @@ jobs:
           } >> "$GCCD/gcc-4.6.inc"
           sed -i '/file:\/\/.*uclibc/d; /gcc-flags-for-build.patch/d; /^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
+          echo 'CFLAGS_append = " -fno-strict-aliasing -fno-delete-null-pointer-checks"' >> "$GCCD/gcc-4.6.inc"
           echo 'do_compile() {' > "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '    oe_runmake CFLAGS="-O1 -fno-strict-aliasing -fno-delete-null-pointer-checks" all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
 
-          # site.conf: νεκρά mirrors out
+          # site.conf: remove dead mirrors
           sed -i '42,52d' meta-msm/conf/site.conf 2>/dev/null || true
 
           # tar -ps fix
@@ -75,7 +71,7 @@ jobs:
           done
           sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/lib/oe/path.py 2>/dev/null
 
-          # samba PRODUCT_MEMORY
+          # samba fix
           sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb 2>/dev/null
 
           # tp-link-common stub
@@ -92,7 +88,7 @@ jobs:
           sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' "$EGD/cross-localedef-native_2.13.bb"
           sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' "$EGD/cross-localedef-native_2.13.bb"
 
-          # various fixes
+          # various dependency fixes
           sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' meta-msm/recipes/loc-api/loc-api_git.bb
@@ -101,10 +97,7 @@ jobs:
           sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
           sed -i '/kernel-tests \\/d' meta-msm/recipes/images/mdm-bootimg.inc
 
-          # buildname bypass
-          sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs image-prelink"/' meta/../*/conf/local.conf 2>/dev/null || true
-
-          # bzip2 seed + elfutils source fix
+          # bzip2/elfutils URL fix
           sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' meta/recipes-devtools/elfutils/elfutils_0.148.bb
 
           # git-native from kernel.org
@@ -112,36 +105,36 @@ jobs:
           sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta-msm/recipes/git/git-native_1.7.7.bb 2>/dev/null
 
           # gettext gets fix
-          find . -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \; 2>/dev/null
+          find meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \; 2>/dev/null
 
-          # gzip 1.12 recipe
+          # gzip 1.12
           GZD=meta/recipes-extended/gzip
-          cat > "$GZD/gzip_1.12.bb" << 'GZEOF'
-          require gzip.inc
-          PR = "r0"
-          BBCLASSEXTEND = "native"
-          LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504 file://gzip.h;firstline=8;endline=20;md5=5a78e7654c2417610e2a883c0f0c6947"
-          SRC_URI[md5sum] = "8d7e6332cf8f0443b682fbf41223e280"
-          SRC_URI[sha256sum] = "5b4fb14d38314e09f2fc8a1c510e7cd540a3ea0e3eb9b0420046b82c3bf41085"
-          do_compile_prepend() {
-              mkdir -p ${S}/lib/sys ${S}/sys
-              touch ${S}/aclocal.m4 ${S}/configure ${S}/config.h.in ${S}/Makefile.in ${S}/Makefile
-          }
-          GZEOF
+          { echo 'require gzip.inc'
+            echo 'PR = "r0"'
+            echo 'BBCLASSEXTEND = "native"'
+            echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504 file://gzip.h;firstline=8;endline=20;md5=5a78e7654c2417610e2a883c0f0c6947"'
+            echo 'SRC_URI[md5sum] = "8d7e6332cf8f0443b682fbf41223e280"'
+            echo 'SRC_URI[sha256sum] = "5b4fb14d38314e09f2fc8a1c510e7cd540a3ea0e3eb9b0420046b82c3bf41085"'
+            echo 'do_compile_prepend() {'
+            echo '    mkdir -p ${S}/lib/sys ${S}/sys'
+            echo '    touch ${S}/aclocal.m4 ${S}/configure ${S}/config.h.in ${S}/Makefile.in ${S}/Makefile'
+            echo '}'
+          } > "$GZD/gzip_1.12.bb"
 
           # perl current_saltbits fix
           PRD=meta/recipes-devtools/perl
-          echo 'do_compile_prepend() {' > "$PRD/perl-native_5.14.2.bb.fix"
-          echo '    sed -i "/current_saltbits/d" ${S}/pp.c || true' >> "$PRD/perl-native_5.14.2.bb.fix"
-          echo '}' >> "$PRD/perl-native_5.14.2.bb.fix"
-          cat "$PRD/perl-native_5.14.2.bb.fix" >> "$PRD/perl-native_5.14.2.bb"
-          rm -f "$PRD/perl-native_5.14.2.bb.fix"
+          echo 'do_compile_prepend() {' > "$PRD/perl_5.14.2.fix"
+          echo '    sed -i "/current_saltbits/d" ${S}/pp.c || true' >> "$PRD/perl_5.14.2.fix"
+          echo '}' >> "$PRD/perl_5.14.2.fix"
+          cat "$PRD/perl_5.14.2.fix" >> "$PRD/perl-native_5.14.2.bb" 2>/dev/null
+          cat "$PRD/perl_5.14.2.fix" >> "$PRD/perl_5.14.2.bb" 2>/dev/null
+          rm -f "$PRD/perl_5.14.2.fix"
 
-          # ncurses without c++ binding
+          # ncurses without c++
           NCD=meta/recipes-core/ncurses
           echo 'EXTRA_OECONF += "--without-cxx-binding"' >> "$NCD/ncurses_5.9.bb"
 
-          # binutils: MAKEINFO + -fpermissive
+          # binutils MAKEINFO
           BUD=meta/recipes-devtools/binutils
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils_2.22.bb"
@@ -161,25 +154,18 @@ jobs:
           echo '}' >> "$M4D/m4-native_1.4.19.bb"
           echo 'EXTRA_OECONF += "--disable-nls"' >> "$M4D/m4-native_1.4.19.bb"
 
-          # gettext stdio.h gets fix
-          find meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \; 2>/dev/null
-
           cd ../..
 
       - name: Build
         run: |
           cd src/apps_proc/oe-core
-          # TP-Link procedure
           . build/conf/set_bb_env.sh > init.log 2>&1 || true
-
-          # Patch local.conf
           cd build 2>/dev/null || true
           sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs"/' conf/local.conf
           sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
           grep -q "^DDR_SIZE" conf/local.conf || echo 'DDR_SIZE = "512M"' >> conf/local.conf
           echo 'BB_NUMBER_PARSE_THREADS = "1"' >> conf/local.conf
 
-          # Parse probe
           bitbake -p > ../parse.log 2>&1
           echo "parse exit=$?"
           if grep -q "^ERROR" ../parse.log; then
@@ -188,12 +174,10 @@ jobs:
             exit 1
           fi
 
-          # Build
           bitbake -k mdm-image > ../bitbake-mdm.log 2>&1
           echo "mdm-image exit=$?"
           tail -40 ../bitbake-mdm.log
 
-          # Recovery image
           bitbake -k mdm-recovery-image > ../bitbake-recovery.log 2>&1
           echo "recovery exit=$?"
 
