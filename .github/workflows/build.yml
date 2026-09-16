@@ -54,6 +54,9 @@ jobs:
           cd /__w/m7350/m7350/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
           export MACHINE=mdm9625
+          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> ${TOPDIR}/build/conf/local.conf
+          echo 'PREFERRED_VERSION_m4 = "1.4.19"' >> ${TOPDIR}/build/conf/local.conf
+          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> ${TOPDIR}/build/conf/local.conf
           bitbake mdm-image
           echo "mdm-image exit=$?"
           find ${TOPDIR}/tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
