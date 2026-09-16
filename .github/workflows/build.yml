@@ -143,6 +143,8 @@ jobs:
           sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
           echo 'CFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fno-delete-null-pointer-checks"' >> "$GCCD/gcc-4.6.inc"
+          echo '# host compiler -O0 για το gcc build' >> "$GCCD/gcc-4.6.inc"
+          echo 'export HOST_CFLAGS = "-O0 -fno-strict-aliasing"' >> "$GCCD/gcc-4.6.inc"
           echo 'CXXFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fpermissive"' >> "$GCCD/gcc-4.6.inc"
           echo 'LDFLAGS_append = " -Wl,--allow-multiple-definition"' >> "$GCCD/gcc-4.6.inc"
           echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
@@ -212,6 +214,9 @@ jobs:
           echo 'BBCLASSEXTEND = "native"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://cpan.metacpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb
           sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm;extract=rpm-5.4.0.tar.gz|https://sources.openembedded.org/rpm-5.4.0.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb
+          # lzo 2.06: configure fix
+          LZD=src/apps_proc/oe-core/meta/recipes-support/lzo
+          echo 'EXTRA_OECONF += "--disable-nls"' >> "$LZD/lzo_2.06.bb"
           # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
           GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
           { echo 'require gzip.inc'
@@ -391,22 +396,6 @@ jobs:
             exit 0
           fi
           tail -10 "$WSDIR/parse.log"
-          echo "===== XGCC SANITY TEST ====="
-          XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
-          echo "xgcc: $XG"
-          if [ -n "$XG" ] && [ -x "$XG" ]; then
-            echo 'int main(){return 0;}' > /tmp/t.c
-            echo "--- test compile ---"
-            "$XG" -v -c /tmp/t.c -o /tmp/t.o 2>&1 | tail -20
-            RC=$?
-            echo "xgcc exit: $RC"
-            ls -la /tmp/t.o 2>/dev/null
-            echo "--- test preprocess ---"
-            "$XG" -E /tmp/t.c 2>&1 | tail -5
-          else
-            echo "xgcc NOT FOUND — gcc-cross-initial may not have run"
-          fi
-          echo "===== END XGCC ====="
           XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
           echo "xgcc: $XG"
           if [ -n "$XG" ]; then
@@ -515,6 +504,16 @@ jobs:
             https://sources.openembedded.org/gdb-7.3.1.tar.gz
           seed miniupnpd-1.8.20130521.tar.gz 2b913c53fbeb562731e84b66b3ce704f \
             https://sources.openembedded.org/miniupnpd-1.8.20130521.tar.gz
+          seed popt-1.16.tar.gz 3743beefa3dd6247a73f8f7a32c14c33 \
+            https://sources.openembedded.org/popt-1.16.tar.gz \
+            http://rpm5.org/files/popt/popt-1.16.tar.gz
+          seed lzo-2.06.tar.gz 95380bd4081f85ef08c5209f4107e9f8 \
+            https://sources.openembedded.org/lzo-2.06.tar.gz
+          seed gettext-0.18.1.1.tar.gz 3dd55b952826d2b32f51308f2f91aa89 \
+            https://ftp.gnu.org/gnu/gettext/gettext-0.18.1.1.tar.gz \
+            https://sources.openembedded.org/gettext-0.18.1.1.tar.gz
+          seed python-setuptools-0.6c11.tar.gz 7df2a529a074f613b509fb44feefe74e \
+            https://sources.openembedded.org/setuptools-0.6c11.tar.gz
           seed sysvinit-2.88dsf.tar.bz2 6eda8a97b86e0a6f59dabbf25202aa6f \
             https://sources.openembedded.org/sysvinit-2.88dsf.tar.bz2
           seed expat-2.0.1.tar.gz ee8b492592568805593f81f8cdf2a04c \
@@ -535,6 +534,22 @@ jobs:
           mkdir -p "$WSDIR/faillogs"
           grep -rl "Function failed" tmp-eglibc/work/*/*/temp/ 2>/dev/null | head -5 | xargs -r -I{} cp -L {} "$WSDIR/faillogs/" 2>/dev/null
           ls -la "$WSDIR/faillogs/" 2>/dev/null
+          echo "===== XGCC SANITY TEST ====="
+          XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
+          echo "xgcc: $XG"
+          if [ -n "$XG" ] && [ -x "$XG" ]; then
+            echo 'int main(){return 0;}' > /tmp/t.c
+            echo "--- test compile ---"
+            "$XG" -v -c /tmp/t.c -o /tmp/t.o 2>&1 | tail -20
+            RC=$?
+            echo "xgcc exit: $RC"
+            ls -la /tmp/t.o 2>/dev/null
+            echo "--- test preprocess ---"
+            "$XG" -E /tmp/t.c 2>&1 | tail -5
+          else
+            echo "xgcc NOT FOUND — gcc-cross-initial may not have run"
+          fi
+          echo "===== END XGCC ====="
           echo "===== DEPLOYED IMAGES ====="
           find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
           exit 0
