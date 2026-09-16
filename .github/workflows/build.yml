@@ -147,8 +147,9 @@ jobs:
           echo 'export HOST_CFLAGS = "-O0 -fno-strict-aliasing"' >> "$GCCD/gcc-4.6.inc"
           echo 'CXXFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fpermissive"' >> "$GCCD/gcc-4.6.inc"
           echo 'LDFLAGS_append = " -Wl,--allow-multiple-definition"' >> "$GCCD/gcc-4.6.inc"
-          echo 'CFLAGS = "-O1 -fno-strict-aliasing -fno-delete-null-pointer-checks -fno-ipa-sra"' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo 'CXXFLAGS = "-O1 -fno-strict-aliasing -fpermissive"' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo 'do_configure() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '    oe_runconf' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
@@ -204,13 +205,13 @@ jobs:
           echo 'require opkg.inc' > "$OPD/opkg_svn.bb"
           echo 'DESCRIPTION = "Opkg Package Manager"' >> "$OPD/opkg_svn.bb"
           echo 'DEPENDS = "curl-native"' >> "$OPD/opkg_svn.bb"
-          echo 'SRC_URI = "http://git.yoctoproject.org/cgit/cgit.cgi/opkg/snapshot/opkg-0.1.8.tar.gz"' >> "$OPD/opkg_svn.bb"
+          echo 'SRC_URI = "https://sources.openembedded.org/opkg-0.1.8.tar.gz"' >> "$OPD/opkg_svn.bb"
           echo 'S = "${WORKDIR}/opkg-0.1.8"' >> "$OPD/opkg_svn.bb"
           echo 'BBCLASSEXTEND = "native"' >> "$OPD/opkg_svn.bb"
           echo 'DESCRIPTION = "OPKG Package Manager Utilities"' > src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'LICENSE = "GPLv2+"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=94d55d512a9ba36caa9b7df079bae19f"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'SRC_URI = "http://git.yoctoproject.org/cgit/cgit.cgi/opkg-utils/snapshot/opkg-utils-0.1.8.tar.gz"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
+          echo 'SRC_URI = "https://sources.openembedded.org/opkg-utils-0.1.8.tar.gz"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'S = "${WORKDIR}/opkg-utils"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo 'do_install() {' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
           echo '    install -d ${D}${bindir}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
@@ -299,7 +300,7 @@ jobs:
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils_2.22.bb"
-          echo 'CFLAGS += "-Wno-error=unused-value"' >> "$BUD/binutils_2.22.bb"
+          echo 'CFLAGS += "-Wno-error=unused-value -Wno-error=implicit-fallthrough"' >> "$BUD/binutils_2.22.bb"
 
           echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
           echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils-cross_2.22.bb"
@@ -390,6 +391,8 @@ jobs:
           echo 'PREFERRED_VERSION_gzip-native = "1.12"' >> conf/local.conf
           echo 'PREFERRED_VERSION_gzip = "1.12"' >> conf/local.conf
           echo 'BB_NUMBER_PARSE_THREADS = "1"' >> conf/local.conf
+          echo 'CFLAGS_pn-gcc-cross-initial = "-O1 -fno-strict-aliasing -fno-delete-null-pointer-checks -fno-ipa-sra"' >> conf/local.conf
+          echo 'CXXFLAGS_pn-gcc-cross-initial = "-O1 -fno-strict-aliasing -fpermissive"' >> conf/local.conf
           echo 'EXTRA_OECONF_append = " --disable-nls"' >> conf/local.conf
           find downloads -type f -size 0 -delete 2>/dev/null
           grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
