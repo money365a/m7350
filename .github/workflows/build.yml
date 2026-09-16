@@ -56,6 +56,12 @@ jobs:
       - name: Build
         shell: bash
         run: |
+          # Pre-download critical sources that have dead URLs
+          DL=/home/builder/src/apps_proc/oe-core/build/downloads
+          mkdir -p $DL
+          wget -q "https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" -O $DL/pseudo-1.2.tar.bz2
+          touch $DL/pseudo-1.2.tar.bz2.done
+          chown -R builder:builder $DL
           su - builder -c '
           cd /home/builder/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
