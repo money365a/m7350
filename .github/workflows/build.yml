@@ -303,7 +303,7 @@ jobs:
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
           echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils_2.22.bb"
-          echo 'CFLAGS += "-Wno-error=unused-value -Wno-error=implicit-fallthrough"' >> "$BUD/binutils_2.22.bb"
+          echo 'CFLAGS += "-Wno-error=unused-value -Wno-error=implicit-fallthrough -Wno-error=cast-function-type"' >> "$BUD/binutils_2.22.bb"
 
           echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
           echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils-cross_2.22.bb"
