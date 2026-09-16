@@ -10,95 +10,135 @@ jobs:
     timeout-minutes: 350
 
     steps:
-      - name: Setup
+      - name: Install dependencies
         shell: bash
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
-          apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git autoconf automake libtool intltool libglib2.0-dev sudo libxml2-dev pkg-config help2man make gawk
-          useradd -m builder
-          ln -sf /bin/bash /bin/sh
+          apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git autoconf automake libtool intltool libglib2.0-dev sudo libxml2-dev pkg-config help2man make gawk python2.7
 
-      - name: Download and extract GPL
+      - name: Fetch and extract GPL source
         shell: bash
         run: |
-          wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O /tmp/gpl.tar.gz
-          echo "0337a736e30cb11f83161bc15d53fac5  /tmp/gpl.tar.gz" | md5sum -c -
-          mkdir -p /home/builder/src
-          tar -xzf /tmp/gpl.tar.gz -C /home/builder/src || true
-          echo "files: $(find /home/builder/src -type f | wc -l)"
-          chown -R builder:builder /home/builder
+          wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
+          echo "0337a736e30cb11f83161bc15d53fac5  gpl.tar.gz" | md5sum -c -
+          mkdir -p src
+          tar -xzf gpl.tar.gz -C src || true
+          echo "files: $(find src -type f | wc -l)"
 
-      - name: Apply build system fixes
+      - name: Fix build system
         shell: bash
         run: |
-          OE=/home/builder/src/apps_proc/oe-core
-          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' $OE/meta-msm/recipes/samba/samba_3.6.22.bb
-          echo '# stub' > $OE/meta-msm/classes/tp-link-common.bbclass
-          sed -i '42,52d' $OE/meta-msm/conf/site.conf 2>/dev/null
-          for f in staging package libc-package sourcepkg; do sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/classes/$f.bbclass; done
+          set +e
+          OE=$GITHUB_WORKSPACE/src/apps_proc/oe-core
+
+          # Remove dead mirrors from site.conf
+          sed -i '42,52d' $OE/meta-msm/conf/site.conf
+
+          # Fix tar -ps
+          for f in staging package libc-package sourcepkg; do
+            sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/classes/$f.bbclass
+          done
           sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/lib/oe/path.py
+
+          # Fix samba PRODUCT_MEMORY (DDR_SIZE not in GPL)
+          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' $OE/meta-msm/recipes/samba/samba_3.6.22.bb
+
+          # Create tp-link-common.bbclass stub
+          echo '# stub: missing from GPL' > $OE/meta-msm/classes/tp-link-common.bbclass
+
+          # Remove deps on missing packages
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' $OE/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' $OE/meta-msm/recipes/loc-api/loc-api_git.bb
           sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' $OE/meta-msm/recipes/hostap/hostap_git.bb
           sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' $OE/meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
           sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' $OE/meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
           sed -i '/kernel-tests \\/d' $OE/meta-msm/recipes/images/mdm-bootimg.inc
-          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' $OE/meta/recipes-devtools/elfutils/elfutils_0.148.bb
-          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta/recipes-devtools/git/git_1.7.7.bb
-          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta-msm/recipes/git/git-native_1.7.7.bb
-          find $OE/meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
+
+          # ncurses: skip c++
+          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
+
+          # binutils: skip docs
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils_2.22.bb
           echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils-cross_2.22.bb
-          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
-          # m4 1.4.16 gnulib gets fix (target the template so generated stdio.h is clean)
-          find $OE/meta/recipes-devtools/m4 -name "*.bb" -exec grep -l "m4" {} \; | head -1 > /dev/null
-          M4D=$OE/meta/recipes-devtools/m4
-          echo 'do_configure_prepend() {' >> "$M4D/m4-native_1.4.16.bb"
-          echo '    find ${S} -name "stdio.in.h" -exec sed -i "/_GL_WARN_ON_USE (gets/d; /undef gets/d" {} \;' >> "$M4D/m4-native_1.4.16.bb"
-          echo '}' >> "$M4D/m4-native_1.4.16.bb"
-          echo 'do_configure_append() {' >> "$M4D/m4-native_1.4.16.bb"
-          echo '    for f in $(find ${S} -name "stdio.h" -path "*/lib/*"); do sed -i "/_GL_WARN_ON_USE (gets/d; /undef gets/d" $f 2>/dev/null; done' >> "$M4D/m4-native_1.4.16.bb"
-          echo '}' >> "$M4D/m4-native_1.4.16.bb"
-          chown -R builder:builder /home/builder
 
-          # automake: skip info docs
-          AMD=$OE/meta/recipes-devtools/automake
-          echo 'do_configure_append() {' >> "$AMD/automake_1.11.2.bb"
-          echo '    printf "all:\ninstall:\nclean:\ndistclean:\ncheck:\n" > ${S}/doc/Makefile' >> "$AMD/automake_1.11.2.bb"
-          echo '}' >> "$AMD/automake_1.11.2.bb"
+          # gettext: gets fix
+          find $OE/meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
 
-      - name: Build
+          # elfutils: fix dead URL
+          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' $OE/meta/recipes-devtools/elfutils/elfutils_0.148.bb
+
+          # git: fix dead URL
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta/recipes-devtools/git/git_1.7.7.bb
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta-msm/recipes/git/git-native_1.7.7.bb
+
+          # Pre-download critical sources with .done stamps
+          DL=$OE/build/downloads
+          mkdir -p $DL
+          for pair in \
+            "pseudo-1.2.tar.bz2 https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" \
+            "gcc-core-4.6.4.tar.bz2 https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" \
+            "gcc-g++-4.6.4.tar.bz2 https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" \
+            "eglibc_2.13.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" \
+            "eglibc_2.12.1.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" \
+            "binutils-2.22.tar.bz2 https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2"; do
+            fname=$(echo $pair | cut -d' ' -f1)
+            url=$(echo $pair | cut -d' ' -f2)
+            if [ ! -f "$DL/$fname.done" ]; then
+              wget -q "$url" -O "$DL/$fname" || true
+              touch "$DL/$fname.done"
+            fi
+          done
+
+      - name: Write gcc-4.6.inc recipe
         shell: bash
         run: |
-          set +e
-          # Pre-download critical sources that have dead URLs
-          DL=/home/builder/src/apps_proc/oe-core/build/downloads
-          mkdir -p $DL
-          wget -q "https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" -O $DL/pseudo-1.2.tar.bz2
-          touch $DL/pseudo-1.2.tar.bz2.done
-          # zlib (dead URL http://www.zlib.net/zlib-1.2.5.tar.bz2)
-          for zurl in "https://sources.openembedded.org/zlib-1.2.5.tar.bz2" "https://zlib.net/fossils/zlib-1.2.5.tar.bz2" "http://zlib.net/zlib-1.2.5.tar.bz2"; do
-            wget -q "$zurl" -O $DL/zlib-1.2.5.tar.bz2 && [ -s "$DL/zlib-1.2.5.tar.bz2" ] && break
-          done
-          touch $DL/zlib-1.2.5.tar.bz2.done
-          # flex (dead sourceforge URL)
-          wget -q "https://sources.openembedded.org/flex-2.5.35.tar.bz2" -O $DL/flex-2.5.35.tar.bz2
-          touch $DL/flex-2.5.35.tar.bz2.done
-          chown -R builder:builder $DL
-          su - builder -c '
-          cd /home/builder/src/apps_proc/oe-core
+          OE=$GITHUB_WORKSPACE/src/apps_proc/oe-core
+          GCCD=$OE/meta/recipes-devtools/gcc
+          # Write a clean gcc-4.6.inc without SVN references
+          echo 'require gcc-common.inc' > $GCCD/gcc-4.6.inc
+          echo 'PR = "r22"' >> $GCCD/gcc-4.6.inc
+          echo 'PV = "4.6.4"' >> $GCCD/gcc-4.6.inc
+          echo 'BINV = "4.6.4"' >> $GCCD/gcc-4.6.inc
+          echo 'FILESPATH = "${@base_set_filespath([ '${FILE_DIRNAME}/gcc-4.6' ], d)}"' >> $GCCD/gcc-4.6.inc
+          echo 'DEPENDS =+ "mpfr gmp libmpc"' >> $GCCD/gcc-4.6.inc
+          echo 'NATIVEDEPS = "mpfr-native gmp-native libmpc-native"' >> $GCCD/gcc-4.6.inc
+          echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gcccore.sha256sum] = "48b566f1288f099dff8fba868499a320f83586245ec69b8c82a9042566a5bf62"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gccgpp.md5sum] = "7fa36715b57a2cb9bfc66bac4ecb1b84"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gccgpp.sha256sum] = "4eaa347f9cd3ab7d5e14efbb9c5c03009229cd714b558fc55fa56e8996b74d42"' >> $GCCD/gcc-4.6.inc
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $GCCD/gcc-4.6.inc
+          echo 'CFLAGS_append = " -fno-strict-aliasing"' >> $GCCD/gcc-4.6.inc
+          echo 'require gcc-cross-initial.inc' > $GCCD/gcc-cross-initial_4.6.bb
+          echo 'do_compile() {' >> $GCCD/gcc-cross-initial_4.6.bb
+          echo '    oe_runmake all-gcc' >> $GCCD/gcc-cross-initial_4.6.bb
+          echo '}' >> $GCCD/gcc-cross-initial_4.6.bb
+
+      - name: Build with TP-Link procedure
+        shell: bash
+        run: |
+          cd $GITHUB_WORKSPACE/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
           export MACHINE=mdm9625
-          echo "PREFERRED_VERSION_m4-native = \"1.4.19\"" >> build/conf/local.conf
-          echo "PREFERRED_VERSION_pseudo-native = \"1.9.0\"" >> build/conf/local.conf
-          echo "BB_NUMBER_PARSE_THREADS = \"1\"" >> build/conf/local.conf
-          echo "PREMIRRORS = \"http://.*/.* https://sources.openembedded.org/ \\n ftp://.*/.* https://sources.openembedded.org/\"" >> build/conf/local.conf
-          bitbake mdm-image
-          echo "mdm-image exit=$?"
-          echo "===== DEPLOYED IMAGES ====="
-          find ${TOPDIR}/tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
-          '
+          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> build/conf/local.conf
+          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> build/conf/local.conf
+          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> build/conf/local.conf
+          echo 'INHERIT_remove = "sanity"' >> build/conf/local.conf
+
+          bitbake -p > $GITHUB_WORKSPACE/parse.log 2>&1
+          echo "parse exit=$?"
+          if grep -q "^ERROR" $GITHUB_WORKSPACE/parse.log; then
+            echo "PARSE FAILED"
+            tail -30 $GITHUB_WORKSPACE/parse.log
+          else
+            bitbake -k mdm-image > $GITHUB_WORKSPACE/bitbake-mdm.log 2>&1
+            echo "mdm-image exit=$?"
+            tail -40 $GITHUB_WORKSPACE/bitbake-mdm.log
+            echo "===== DEPLOYED IMAGES ====="
+            find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
+          fi
 
       - name: Upload logs and images
         if: always()
@@ -106,6 +146,8 @@ jobs:
         with:
           name: m7350-v3-build-output
           path: |
-            /home/builder/src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
+            parse.log
+            bitbake-mdm.log
+            src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
