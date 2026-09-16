@@ -1,5 +1,4 @@
 name: M7350-V3-build
-
 on:
   workflow_dispatch:
 
@@ -11,585 +10,151 @@ jobs:
     timeout-minutes: 350
 
     steps:
-      - name: Create builder user
+      - name: Install dependencies
         shell: bash
         run: |
-      - name: Disk space
-        continue-on-error: true
-        run: |
-          sudo ln -sf /bin/bash /bin/sh
-          ls -la /bin/sh
-          sudo ln -sf /bin/bash /bin/sh
-                    sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghc
-          sudo apt-get clean
-          df -h /
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git autoconf automake libtool intltool libglib2.0-dev sudo libxml2-dev pkg-config help2man make gawk
 
-      - name: Install build dependencies
-        continue-on-error: true
+      - name: Download and extract GPL
+        shell: bash
         run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential gcc-multilib g++-multilib \
-            lib32z1 lib32stdc++6 lib32gcc-s1 \
-            zlib1g:i386 libncurses5:i386 libstdc++6:i386 \
-            libncurses5-dev flex bison gawk gettext texinfo \
-            unzip rsync cpio file wget screen \
-            libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath texi2html subversion
-          gcc --version | head -1
-
-      - name: Download GPL source
-        continue-on-error: true
-        run: |
-          set +e
-          URL1="https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz"
-          URL2="https://archive.org/download/tp-link-gpl-source/Home/Mobile%20Wi-Fi/M7350/M7350v3_en_gpl.tar.gz"
-          wget --tries=2 -c "$URL1" -O M7350v3_en_gpl.tar.gz
-          SIZE1=$(stat -c %s M7350v3_en_gpl.tar.gz 2>/dev/null || echo 0)
-          echo "URL1 size=$SIZE1"
-          if [ "$SIZE1" -lt 500000000 ]; then
-            if [ "$SIZE1" -lt 1000000 ]; then rm -f M7350v3_en_gpl.tar.gz; fi
-            echo "URL1 incomplete — falling back to archive.org"
-            wget -c "$URL2" -O M7350v3_en_gpl.tar.gz
-            echo "URL2 exit=$?"
-          fi
-          md5sum M7350v3_en_gpl.tar.gz
-          md5sum M7350v3_en_gpl.tar.gz | grep -q 0337a736e30cb11f83161bc15d53fac5 \
-            && echo "MD5 OK" \
-            || echo "MD5 MISMATCH"
-
-      - name: Extract source tree
-        continue-on-error: true
-        run: |
-          set +e
+          wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
+          echo "0337a736e30cb11f83161bc15d53fac5  gpl.tar.gz" | md5sum -c -
           mkdir -p src
-          tar -xzf M7350v3_en_gpl.tar.gz -C src 2> tar-errors.txt
-          echo "tar exit=$?"
-          echo "extracted files: $(find src -type f | wc -l)"
-          # samba recipe: DDR_SIZE δεν ορίζεται πουθενά στο GPL — neutralize η έκφραση
-          sed -i 's|^PRODUCT_MEMORY .*|PRODUCT_MEMORY = ""|' src/apps_proc/oe-core/meta-msm/recipes/samba/samba_3.6.22.bb
-          grep -n "^PRODUCT_MEMORY" src/apps_proc/oe-core/meta-msm/recipes/samba/samba_3.6.22.bb
-          # site.conf: σβήσε το νεκρό PREMIRRORS μπλοκ (γραμμές 42-52)
-          sed -i '42,52d' src/apps_proc/oe-core/meta-msm/conf/site.conf
-          grep -c "PREMIRRORS" src/apps_proc/oe-core/meta-msm/conf/site.conf || echo "PREMIRRORS μπλοκ: καθαρό"
-          # Modern tar (>=1.32): το "-ps" με -c είναι fatalError — παλιά αγνοούνταν.
-          # Διόρθωση και στα 4 classes με tar staging pipes.
+          tar -xzf gpl.tar.gz -C src || true
+          echo "files: $(find src -type f | wc -l)"
+
+      - name: Apply fixes and build
+        shell: bash
+        run: |
+          set +e
+          export DEBIAN_FRONTEND=noninteractive
+          OE=src/apps_proc/oe-core
+          cd $OE
+
+          # Install Python 2.7 (needed by Yocto)
+          apt-get install -y python2.7 python
+          ln -sf /usr/bin/python2.7 /usr/bin/python
+
+          # Fix /bin/sh -> bash
+          ln -sf /bin/bash /bin/sh
+
+          # Remove dead mirrors
+          sed -i '42,52d' meta-msm/conf/site.conf 2>/dev/null
+
+          # tar -ps fix
           for f in staging package libc-package sourcepkg; do
-            sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' "src/apps_proc/oe-core/meta/classes/$f.bbclass"
+            sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/classes/$f.bbclass
           done
-          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' src/apps_proc/oe-core/meta/lib/oe/path.py
-          grep -n "tar -xpf" src/apps_proc/oe-core/meta/lib/oe/path.py
-          # m4 1.4.16: gnulib bugs (gets/c-stack) με modern glibc — αναβάθμιση σε 1.4.19
-          M4D=src/apps_proc/oe-core/meta/recipes-devtools/m4
-          cp "$M4D/m4-1.4.16.inc" "$M4D/m4-1.4.19.inc"
-          sed -i 's/^PR = "r2"/PR = "r0"/' "$M4D/m4-1.4.19.inc"
-          sed -i '/ac_config_links/d' "$M4D/m4-1.4.19.inc"
-          sed -i 's/d32239bcb673463ab874e80d47fae504/1ebbd3e34237af26da5dc08a4e440464/' "$M4D/m4-1.4.19.inc"
-          sed -i 's/fbc986d45b3dae6725c29870dd6b669d/4031593b2166d6c47cae282d944a7ede/' "$M4D/m4-1.4.19.inc"
-          sed -i 's|^SRC_URI\[md5sum\].*|SRC_URI[md5sum] = "f4a2b0284d80353b995f8ef2385ed73c"|' "$M4D/m4-1.4.19.inc"
-          sed -i 's|^SRC_URI\[sha256sum\].*|SRC_URI[sha256sum] = "3be4a26d825ffdfda52a56fc43246456989a3630093cced3fbddf4771ee58a70"|' "$M4D/m4-1.4.19.inc"
-          cp "$M4D/m4-native_1.4.16.bb" "$M4D/m4-native_1.4.19.bb"
-          # bypass QA gettext check: το native m4 δεν χρειάζεται gettext
-          echo '' >> "$M4D/m4-native_1.4.19.bb"
-          echo 'do_configure_prepend() {' >> "$M4D/m4-native_1.4.19.bb"
-          echo '    sed -i "/AM_GNU_GETTEXT/d" ${S}/configure.ac' >> "$M4D/m4-native_1.4.19.bb"
-          echo '}' >> "$M4D/m4-native_1.4.19.bb"
-          echo 'EXTRA_OECONF += "--disable-nls"' >> "$M4D/m4-native_1.4.19.bb"
-          echo 'do_configure_append() {' >> "$M4D/m4-native_1.4.19.bb"
-          echo '    sed -i "/^SUBDIRS/,/^$/s/\\bpo\\b//" ${S}/Makefile 2>/dev/null || true' >> "$M4D/m4-native_1.4.19.bb"
-          echo '    printf "all:\ninstall:\nclean:\ndistclean:\ncheck:\n" > ${S}/po/Makefile' >> "$M4D/m4-native_1.4.19.bb"
-          echo '}' >> "$M4D/m4-native_1.4.19.bb"
-          cat "$M4D/m4-1.4.19.inc" "$M4D/m4-native_1.4.19.bb"
-          grep -rn "tar -xpf" src/apps_proc/oe-core/meta/classes/ | head -5
-          # automake 1.11.2: skip info docs (texinfo 6 incompatibility) — άδειο doc/Makefile
-          AMD=src/apps_proc/oe-core/meta/recipes-devtools/automake
-          rm -f "$AMD/automake_1.11.2.bbappend"
-          echo '' >> "$AMD/automake_1.11.2.bb"
-          echo 'do_configure_append() {' >> "$AMD/automake_1.11.2.bb"
-          echo '    printf "all:\\ninstall:\\nclean:\\ndistclean:\\ncheck:\\n" > ${S}/doc/Makefile' >> "$AMD/automake_1.11.2.bb"
-          echo '}' >> "$AMD/automake_1.11.2.bb"
-          # pkgconfig 0.25: bundled glib 2.28 breaks με gcc>=10 (gnu11 inline + no-common)
-          PKGD=src/apps_proc/oe-core/meta/recipes-devtools/pkgconfig
-          echo '' >> "$PKGD/pkgconfig_0.25.bb"
-          echo 'CFLAGS += "-fcommon -std=gnu89"' >> "$PKGD/pkgconfig_0.25.bb"
-          echo 'LDFLAGS += "-Wl,--allow-multiple-definition"' >> "$PKGD/pkgconfig_0.25.bb"
-          echo 'do_configure_append() {' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '    for f in $(find ${S} -name Makefile); do' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '        sed -i "s/^LDFLAGS = /LDFLAGS = -Wl,--allow-multiple-definition /" $f' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '    done' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '    for f in $(find ${S}/glib-1.2.10 -name Makefile 2>/dev/null); do' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '        sed -i "s/testgdateparser//; s/testgdate//; s/testgmodule//; s/testglib//" $f' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '        sed -i "s/^CFLAGS = /CFLAGS = -std=gnu89 -fcommon /" $f' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '    done' >> "$PKGD/pkgconfig_0.25.bb"
-          echo '}' >> "$PKGD/pkgconfig_0.25.bb"
-          # pseudo 1.2 χρησιμοποιεί _STAT_VER (αφαιρέθηκε από glibc 2.28+) — αναβάθμιση σε 1.9.0
-          PSD=src/apps_proc/oe-core/meta/recipes-devtools/pseudo
-          { echo 'require pseudo.inc'
-            echo ''
-            echo 'PR = "r0"'
-            echo ''
-            echo 'SRC_URI = "http://downloads.yoctoproject.org/releases/pseudo/pseudo-1.9.0.tar.bz2"'
-            echo ''
-            echo 'SRC_URI[md5sum] = "7ec8409bccdbd9c958367469b6059071"'
-            echo 'SRC_URI[sha256sum] = "a3f150cc55b2fa009c9411335981b55675ead4e5cb4a9c36ed40b32f81d020c1"'
-            echo ''
-            echo '# glibc 2.33+ αφαίρεσε τα public _STAT_VER/_MKNOD_VER — τα ορίζουμε στα sources'
-            echo 'CFLAGS += "-D_STAT_VER=1 -D_MKNOD_VER=1"'
-            echo 'do_compile_prepend_virtclass-native() {' >> "$PSD/pseudo_1.9.0.bb"
-            echo '    for f in $(find ${S}/ports -name "*.c"); do' >> "$PSD/pseudo_1.9.0.bb"
-            echo '        grep -q _STAT_VER $f && sed -i "1i #define _STAT_VER 1" $f || true' >> "$PSD/pseudo_1.9.0.bb"
-            echo '        grep -q _MKNOD_VER $f && sed -i "1i #define _MKNOD_VER 1" $f || true' >> "$PSD/pseudo_1.9.0.bb"
-            echo '    done' >> "$PSD/pseudo_1.9.0.bb"
-            echo '    sed -i "s/^} pseudo_access_t;\$/};/" ${S}/pseudo_ipc.h' >> "$PSD/pseudo_1.9.0.bb"
-            echo '}' >> "$PSD/pseudo_1.9.0.bb"
-          } > "$PSD/pseudo_1.9.0.bb"
-          # gcc 4.6: το SVN του gcc.gnu.org retired — release tarballs 4.6.4 από ftp.gnu.org
-          GCCD=src/apps_proc/oe-core/meta/recipes-devtools/gcc
-          sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
-          echo 'CFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fno-delete-null-pointer-checks"' >> "$GCCD/gcc-4.6.inc"
-          echo '# host compiler -O0 για το gcc build' >> "$GCCD/gcc-4.6.inc"
-          echo 'export HOST_CFLAGS = "-O0 -fno-strict-aliasing"' >> "$GCCD/gcc-4.6.inc"
-          echo 'CXXFLAGS_append = " -O1 -fno-strict-aliasing -fno-ipa-sra -fpermissive"' >> "$GCCD/gcc-4.6.inc"
-          echo 'LDFLAGS_append = " -Wl,--allow-multiple-definition"' >> "$GCCD/gcc-4.6.inc"
-          echo 'do_configure() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '    oe_runconf' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '    oe_runmake CFLAGS="-O1 -fno-strict-aliasing -fno-delete-null-pointer-checks" all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
-          sed -i 's|^S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/${BRANCH}"|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' "$GCCD/gcc-4.6.inc"
-          sed -i 's|^B = "${WORKDIR}/${BRANCH}/build.${HOST_SYS}.${TARGET_SYS}"|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' "$GCCD/gcc-4.6.inc"
-          # miniupnpd: αφαίρεση missing 'data' dependency
-          sed -i 's|^DEPENDS = "data"|DEPENDS = ""|' src/apps_proc/oe-core/meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
-          # wpa-supplicant-ath6kl / hostap: αφαίρεση missing 'qmi' dependency
-          sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' src/apps_proc/oe-core/meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
-          sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' src/apps_proc/oe-core/meta-msm/recipes/hostap/hostap_git.bb
-          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp \\|' "$GCCD/gcc-4.6.inc"
-          { echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"'
-            echo 'SRC_URI[gcccore.sha256sum] = "48b566f1288f099dff8fba868499a320f83586245ec69b8c82a9042566a5bf62"'
-            echo 'SRC_URI[gccgpp.md5sum] = "7fa36715b57a2cb9bfc66bac4ecb1b84"'
-            echo 'SRC_URI[gccgpp.sha256sum] = "4eaa347f9cd3ab7d5e14efbb9c5c03009229cd714b558fc55fa56e8996b74d42"'
-          } >> "$GCCD/gcc-4.6.inc"
-          grep -A3 "^SRC_URI" "$GCCD/gcc-4.6.inc" | head -5
-          # uclibc patches: αδιάφορα για glibc build και δεν ταιριάζουν στο 4.6.4 release — remove
-          sed -i '/file:\/\/.*uclibc/d' "$GCCD/gcc-4.6.inc"
-          grep -c "uclibc" "$GCCD/gcc-4.6.inc" || echo "uclibc patches: καθαρά"
-          sed -i '/gcc-flags-for-build.patch/d' "$GCCD/gcc-4.6.inc"
-          # αφαίρεση ΟΛΩΝ των παλιών patches — vanilla 4.6.4
-          sed -i '/^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
-          grep -c "\.patch" "$GCCD/gcc-4.6.inc" || echo "gcc patches: καθαρά"
-          # gettext-native 0.18.1.1: stdio.h gets fix
-          sed -i '/_GL_WARN_ON_USE (gets/d' src/apps_proc/oe-core/meta/recipes-core/gettext/gettext-0.18.1.1/gnulib-local/lib/stdio.in.h 2>/dev/null || true
-          sed -i '/_GL_WARN_ON_USE (gets/d' src/apps_proc/oe-core/meta/recipes-core/gettext/gettext-0.18.1.1/gettext-tools/gnulib-lib/stdio.in.h 2>/dev/null || true
-          # elfutils-native: scrub -Werror από generated Makefiles
-          EUD=src/apps_proc/oe-core/meta/recipes-devtools/elfutils
+          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/lib/oe/path.py
 
-          echo 'CFLAGS += "-Wno-error"' >> "$EUD/elfutils_0.148.bb"
-          # bzip2-native: rpath ώστε το binary να βρίσκει libbz2.so.0 στο native sysroot
-          BZD=src/apps_proc/oe-core/meta/recipes-extended/bzip2
-          echo 'LDFLAGS += "-Wl,-rpath,${libdir}"' >> "$BZD/bzip2_1.0.6.bb"
-          echo 'do_install_append_virtclass-native() {' >> "$BZD/bzip2_1.0.6.bb"
-          echo '    sudo mkdir -p /usr/local/lib' >> "$BZD/bzip2_1.0.6.bb"
-          echo '    sudo cp -a ${D}${libdir}/libbz2.so* /usr/local/lib/ 2>/dev/null || true' >> "$BZD/bzip2_1.0.6.bb"
-          echo '    sudo ldconfig 2>/dev/null || true' >> "$BZD/bzip2_1.0.6.bb"
-          echo '}' >> "$BZD/bzip2_1.0.6.bb"
-          echo 'do_compile_prepend() {' >> "$BZD/bzip2_1.0.6.bb"
-          echo '    sed -i "s|-o bzip2-shared bzip2.c|-Wl,-rpath,${libdir} -o bzip2-shared bzip2.c|" ${S}/Makefile-libbz2_so || true' >> "$BZD/bzip2_1.0.6.bb"
-          echo '}' >> "$BZD/bzip2_1.0.6.bb"
-          # gdb-cross 7.3.1: bfd -Werror με modern gcc
-          GBD=src/apps_proc/oe-core/meta/recipes-devtools/gdb
-          echo 'CFLAGS += "-Wno-error"' >> "$GBD/gdb-cross_7.3.1.bb"
-          # perl-native 5.14.2: current_saltbits αφαιρέθηκε από modern glibc
-          PRD=src/apps_proc/oe-core/meta/recipes-devtools/perl
-          echo 'do_compile_prepend() {' >> "$PRD/perl-native_5.14.2.bb"
-          echo '    sed -i "/current_saltbits/d" ${S}/pp.c || true' >> "$PRD/perl-native_5.14.2.bb"
-          echo '}' >> "$PRD/perl-native_5.14.2.bb"
-          # git-native: disable gettext QA
-          GITD=src/apps_proc/oe-core/meta-msm/recipes/git
-          echo 'EXTRA_OECONF += "--disable-nls"' >> "$GITD/git-native_1.7.7.bb"
-          # opkg_svn: googlecode svn νεκρό — rewrite σε tarball
-          OPD=src/apps_proc/oe-core/meta/recipes-devtools/opkg
-          echo 'require opkg.inc' > "$OPD/opkg_svn.bb"
-          echo 'DESCRIPTION = "Opkg Package Manager"' >> "$OPD/opkg_svn.bb"
-          echo 'DEPENDS = "curl-native"' >> "$OPD/opkg_svn.bb"
-          echo 'SRC_URI = "https://downloads.yoctoproject.org/releases/opkg/opkg-0.1.8.tar.gz"' >> "$OPD/opkg_svn.bb"
-          echo 'S = "${WORKDIR}/opkg-0.1.8"' >> "$OPD/opkg_svn.bb"
-          echo 'BBCLASSEXTEND = "native"' >> "$OPD/opkg_svn.bb"
-          echo 'DESCRIPTION = "OPKG Package Manager Utilities"' > src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'LICENSE = "GPLv2+"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=94d55d512a9ba36caa9b7df079bae19f"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'SRC_URI = "https://downloads.yoctoproject.org/releases/opkg-utils/opkg-utils-0.1.8.tar.gz"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'S = "${WORKDIR}/opkg-utils"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'do_install() {' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo '    install -d ${D}${bindir}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo '    install -m 0755 ${S}/opkg.py ${D}${bindir}/' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo '}' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          echo 'BBCLASSEXTEND = "native"' >> src/apps_proc/oe-core/meta/recipes-devtools/opkg-utils/opkg-utils_svn.bb
-          sed -i 's|http://www.cpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|https://cpan.metacpan.org/modules/by-module/XML/XML-Parser-2.41.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/libxml-parser-perl/libxml-parser-perl_2.41.bb
-          sed -i 's|http://www.rpm5.org/files/rpm/rpm-5.4/rpm-5.4.0-0.20101229.src.rpm;extract=rpm-5.4.0.tar.gz|https://sources.openembedded.org/rpm-5.4.0.tar.gz|' src/apps_proc/oe-core/meta/recipes-devtools/rpm/rpm_5.4.0.bb
-          # lzo 2.06: configure fix
-          LZD=src/apps_proc/oe-core/meta/recipes-support/lzo
-          echo 'EXTRA_OECONF += "--disable-nls"' >> "$LZD/lzo_2.06.bb"
-          echo 'do_configure_prepend() {' >> "$LZD/lzo_2.06.bb"
-          echo '    find ${S} -name configure -exec sed -i s/-Werror//g {} \;' >> "$LZD/lzo_2.06.bb"
-          echo '}' >> "$LZD/lzo_2.06.bb"
-          # gzip 1.4: gnulib πριν το 2010 — αναβάθμιση σε 1.13
-          GZD=src/apps_proc/oe-core/meta/recipes-extended/gzip
-          { echo 'require gzip.inc'
-            echo ''
-            echo 'PR = "r0"'
-            echo ''
-            echo 'BBCLASSEXTEND = "native"'
-            echo ''
-            echo 'SRC_URI[md5sum] = "8d7e6332cf8f0443b682fbf41223e280"'
-            echo 'SRC_URI[sha256sum] = "5b4fb14d38314e09f2fc8a1c510e7cd540a3ea0e3eb9b0420046b82c3bf41085"'
-            echo 'do_configure_prepend() {'
-            echo '    sed -i "/AM_GNU_GETTEXT/d" ${S}/configure.ac'
-            echo '}'
-            echo 'LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504 file://gzip.h;firstline=8;endline=20;md5=5a78e7654c2417610e2a883c0f0c6947"'
-          echo 'do_compile_prepend() {' >> "$GZD/gzip_1.12.bb"
-          echo '    mkdir -p ${S}/lib/sys ${S}/sys ${B}/lib/sys' >> "$GZD/gzip_1.12.bb"
-          echo '    touch ${S}/aclocal.m4 ${S}/configure ${S}/config.h.in ${S}/Makefile.in ${S}/Makefile' >> "$GZD/gzip_1.12.bb"
-          echo '}' >> "$GZD/gzip_1.12.bb"
-          } > "$GZD/gzip_1.12.bb"
-          # ncurses 5.9: MKlib_gen.sh της 6.0 (gcc>=5 -P preprocessor workaround)
-          NCD=src/apps_proc/oe-core/meta/recipes-core/ncurses
-          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> "$NCD/ncurses_5.9.bb"
-          echo 'do_compile_prepend() {' >> "$NCD/ncurses_5.9.bb"
-          echo '    echo IyEvYmluL3NoCiMKIyBNS2xpYl9nZW4uc2ggLS0gZ2VuZXJhdGUgc291cmNlcyBmcm9tIGN1cnNlcy5oIG1hY3JvIGRlZmluaXRpb25zCiMKIyAoJElkOiBNS2xpYl9nZW4uc2gsdiAxLjUwIDIwMTUvMDgvMDcgMDA6NDg6MjQgdG9tIEV4cCAkKQojCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIwojIENvcHlyaWdodCAoYykgMTk5OC0yMDE0LDIwMTUgRnJlZSBTb2Z0d2FyZSBGb3VuZGF0aW9uLCBJbmMuICAgICAgICAgICAgICAgICMKIyAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAjCiMgUGVybWlzc2lvbiBpcyBoZXJlYnkgZ3JhbnRlZCwgZnJlZSBvZiBjaGFyZ2UsIHRvIGFueSBwZXJzb24gb2J0YWluaW5nIGEgICAgIwojIGNvcHkgb2YgdGhpcyBzb2Z0d2FyZSBhbmQgYXNzb2NpYXRlZCBkb2N1bWVudGF0aW9uIGZpbGVzICh0aGUgIlNvZnR3YXJlIiksICMKIyB0byBkZWFsIGluIHRoZSBTb2Z0d2FyZSB3aXRob3V0IHJlc3RyaWN0aW9uLCBpbmNsdWRpbmcgd2l0aG91dCBsaW1pdGF0aW9uICAjCiMgdGhlIHJpZ2h0cyB0byB1c2UsIGNvcHksIG1vZGlmeSwgbWVyZ2UsIHB1Ymxpc2gsIGRpc3RyaWJ1dGUsIGRpc3RyaWJ1dGUgICAgIwojIHdpdGggbW9kaWZpY2F0aW9ucywgc3VibGljZW5zZSwgYW5kL29yIHNlbGwgY29waWVzIG9mIHRoZSBTb2Z0d2FyZSwgYW5kIHRvICMKIyBwZXJtaXQgcGVyc29ucyB0byB3aG9tIHRoZSBTb2Z0d2FyZSBpcyBmdXJuaXNoZWQgdG8gZG8gc28sIHN1YmplY3QgdG8gdGhlICAjCiMgZm9sbG93aW5nIGNvbmRpdGlvbnM6ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIwojICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICMKIyBUaGUgYWJvdmUgY29weXJpZ2h0IG5vdGljZSBhbmQgdGhpcyBwZXJtaXNzaW9uIG5vdGljZSBzaGFsbCBiZSBpbmNsdWRlZCBpbiAjCiMgYWxsIGNvcGllcyBvciBzdWJzdGFudGlhbCBwb3J0aW9ucyBvZiB0aGUgU29mdHdhcmUuICAgICAgICAgICAgICAgICAgICAgICAgIwojICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICMKIyBUSEUgU09GVFdBUkUgSVMgUFJPVklERUQgIkFTIElTIiwgV0lUSE9VVCBXQVJSQU5UWSBPRiBBTlkgS0lORCwgRVhQUkVTUyBPUiAjCiMgSU1QTElFRCwgSU5DTFVESU5HIEJVVCBOT1QgTElNSVRFRCBUTyBUSEUgV0FSUkFOVElFUyBPRiBNRVJDSEFOVEFCSUxJVFksICAgIwojIEZJVE5FU1MgRk9SIEEgUEFSVElDVUxBUiBQVVJQT1NFIEFORCBOT05JTkZSSU5HRU1FTlQuIElOIE5PIEVWRU5UIFNIQUxMICAgICMKIyBUSEUgQUJPVkUgQ09QWVJJR0hUIEhPTERFUlMgQkUgTElBQkxFIEZPUiBBTlkgQ0xBSU0sIERBTUFHRVMgT1IgT1RIRVIgICAgICAjCiMgTElBQklMSVRZLCBXSEVUSEVSIElOIEFOIEFDVElPTiBPRiBDT05UUkFDVCwgVE9SVCBPUiBPVEhFUldJU0UsIEFSSVNJTkcgICAgIwojIEZST00sIE9VVCBPRiBPUiBJTiBDT05ORUNUSU9OIFdJVEggVEhFIFNPRlRXQVJFIE9SIFRIRSBVU0UgT1IgT1RIRVIgICAgICAgICMKIyBERUFMSU5HUyBJTiBUSEUgU09GVFdBUkUuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAjCiMgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIwojIEV4Y2VwdCBhcyBjb250YWluZWQgaW4gdGhpcyBub3RpY2UsIHRoZSBuYW1lKHMpIG9mIHRoZSBhYm92ZSBjb3B5cmlnaHQgICAgICMKIyBob2xkZXJzIHNoYWxsIG5vdCBiZSB1c2VkIGluIGFkdmVydGlzaW5nIG9yIG90aGVyd2lzZSB0byBwcm9tb3RlIHRoZSBzYWxlLCAjCiMgdXNlIG9yIG90aGVyIGRlYWxpbmdzIGluIHRoaXMgU29mdHdhcmUgd2l0aG91dCBwcmlvciB3cml0dGVuICAgICAgICAgICAgICAgIwojIGF1dGhvcml6YXRpb24uICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICMKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMKIyBUaGUgWFNJIEN1cnNlcyBzdGFuZGFyZCByZXF1aXJlcyBhbGwgY3Vyc2VzIGVudHJ5IHBvaW50cyB0byBleGlzdCBhcwojIGZ1bmN0aW9ucywgZXZlbiB0aG91Z2ggbWFueSBkZWZpbml0aW9ucyB3b3VsZCBub3JtYWxseSBiZSBzaGFkb3dlZAojIGJ5IG1hY3Jvcy4gIFJhdGhlciB0aGFuIGhhbmQtaGFjayBhbGwgdGhhdCBjb2RlLCB3ZSBhY3R1YWxseQojIGdlbmVyYXRlIGZ1bmN0aW9ucyBmcm9tIHRoZSBtYWNyb3MuCiMKIyBUaGlzIHNjcmlwdCBhY2NlcHRzIGEgZmlsZSBvZiBwcm90b3R5cGVzIG9uIHN0YW5kYXJkIGlucHV0LiAgSXQgZGlzY2FyZHMKIyBhbnkgdGhhdCBkb24ndCBoYXZlIGEgYGdlbmVyYXRlZCcgY29tbWVudCBhdHRhY2hlZC4gSXQgdGhlbiBwYXJzZXMgZWFjaAojIHByb3RvdHlwZSAocmVseWluZyBvbiB0aGUgZmFjdCB0aGF0IG5vbmUgb2YgdGhlIG1hY3JvcyB0YWtlIGZ1bmN0aW9uCiMgcG9pbnRlciBvciBhcnJheSBhcmd1bWVudHMpIGFuZCBnZW5lcmF0ZXMgQyBzb3VyY2UgZnJvbSBpdC4KIwojIEhlcmUgaXMgd2hhdCB0aGUgcGlwZWxpbmUgc3RhZ2VzIGFyZSBkb2luZzoKIwojIDEuIHNlZDogZXh0cmFjdCBwcm90b3R5cGVzIG9mIGdlbmVyYXRlZCBmdW5jdGlvbnMKIyAyLiBzZWQ6IGRlY29yYXRlIHByb3RvdHlwZXMgd2l0aCBnZW5lcmF0ZWQgYXJndW1lbnRzIGExLiBhMiwuLi56CiMgMy4gYXdrOiBnZW5lcmF0ZSB0aGUgY2FsbHMgd2l0aCBhcmdzIG1hdGNoaW5nIHRoZSBmb3JtYWxzCiMgNC4gc2VkOiBwcmVmaXggZnVuY3Rpb24gbmFtZXMgaW4gcHJvdG90eXBlcyBzbyB0aGUgcHJlcHJvY2Vzc29yIHdvbid0IGV4cGFuZAojICAgICAgICAgdGhlbS4KIyA1LiBjcHA6IG1hY3JvLWV4cGFuZCB0aGUgZmlsZSBzbyB0aGUgbWFjcm8gY2FsbHMgdHVybiBpbnRvIEMgY2FsbHMKIyA2LiBhd2s6IHN0cmlwIHRoZSBleHBhbnNpb24ganVuayBvZmYgdGhlIGZyb250IGFuZCBhZGQgdGhlIG5ldyBoZWFkZXIKIyA3LiBzZWQ6IHNxdWVlemUgc3BhY2VzLCBzdHJpcCBvZmYgZ2VuXyBwcmVmaXguCiMKCiMga2VlcCB0aGUgZWRpdGluZyBpbmRlcGVuZGVudCBvZiBsb2NhbGU6CmlmIHRlc3QgIiR7TEFOR1VBR0Urc2V0fSIgICAgPSBzZXQ7IHRoZW4gTEFOR1VBR0U9QzsgICAgZXhwb3J0IExBTkdVQUdFOyAgICBmaQppZiB0ZXN0ICIke0xBTkcrc2V0fSIgICAgICAgID0gc2V0OyB0aGVuIExBTkc9QzsgICAgICAgIGV4cG9ydCBMQU5HOyAgICAgICAgZmkKaWYgdGVzdCAiJHtMQ19BTEwrc2V0fSIgICAgICA9IHNldDsgdGhlbiBMQ19BTEw9QzsgICAgICBleHBvcnQgTENfQUxMOyAgICAgIGZpCmlmIHRlc3QgIiR7TENfTUVTU0FHRVMrc2V0fSIgPSBzZXQ7IHRoZW4gTENfTUVTU0FHRVM9QzsgZXhwb3J0IExDX01FU1NBR0VTOyBmaQppZiB0ZXN0ICIke0xDX0NUWVBFK3NldH0iICAgID0gc2V0OyB0aGVuIExDX0NUWVBFPUM7ICAgIGV4cG9ydCBMQ19DVFlQRTsgICAgZmkKaWYgdGVzdCAiJHtMQ19DT0xMQVRFK3NldH0iICA9IHNldDsgdGhlbiBMQ19DT0xMQVRFPUM7ICBleHBvcnQgTENfQ09MTEFURTsgIGZpCgpwcmVwcm9jZXNzb3I9IiQxIC1ETkNVUlNFU19JTlRFUk5BTFMgLUkuLi9pbmNsdWRlIgpBV0s9IiQyIgpVU0U9IiQzIgoKIyBBIHBhdGNoIGRpc2N1c3NlZCBoZXJlOgojCWh0dHBzOi8vZ2NjLmdudS5vcmcvbWwvZ2NjLXBhdGNoZXMvMjAxNC0wNi9tc2cwMjE4NS5odG1sCiMgaW50cm9kdWNlcyBzcHVyaW91cyAjbGluZSBtYXJrZXJzIGludG8gdGhlIHByZXByb2Nlc3NvciBvdXRwdXQuICBUaGUgcmVzdWx0CiMgYXBwZWFycyBpbiBnY2MgNS4wIGFuZCAod2l0aCBtb2RpZmljYXRpb24pIGluIDUuMSwgbWFraW5nIGl0IG5lY2Vzc2FyeSB0bwojIGRldGVybWluZSBpZiB3ZSBhcmUgdXNpbmcgZ2NjLCBhbmQgaWYgc28sIHdoYXQgdmVyc2lvbiBiZWNhdXNlIHRoZSBwcm9wb3NlZAojIHNvbHV0aW9uIHVzZXMgYSBub25zdGFuZGFyZCBvcHRpb24uClBSRz1gZWNobyAiJDEiIHwgJEFXSyAneyBzdWIoL15bWzpzcGFjZTpdXSovLCIiKTsgc3ViKC9bWzpzcGFjZTpdXS4qJC8sICIiKTsgcHJpbnQ7IH0nIHx8IGV4aXQgMGAKRlNGPWAiJFBSRyIgLS12ZXJzaW9uIDI+L2Rldi9udWxsIHx8IGV4aXQgMCB8IGZncmVwICJGcmVlIFNvZnR3YXJlIEZvdW5kYXRpb24iIHwgaGVhZCAtbiAxYApBTEw9YCIkUFJHIiAtZHVtcHZlcnNpb24gMj4vZGV2L251bGwgfHwgZXhpdCAwYApPTkU9YGVjaG8gIiRBTEwiIHwgc2VkIC1lICdzL1wuLiokLy8nYAppZiB0ZXN0IC1uICIkRlNGIiAmJiB0ZXN0IC1uICIkQUxMIiAmJiB0ZXN0IC1uICIkT05FIiA7IHRoZW4KCWlmIHRlc3QgJE9ORSAtZ2UgNSA7IHRoZW4KCQllY2hvICIuLiBhZGRpbmcgLVAgb3B0aW9uIHRvIHdvcmsgYXJvdW5kICRQUkcgJEFMTCIgPiYyCgkJcHJlcHJvY2Vzc29yPSIkcHJlcHJvY2Vzc29yIC1QIgoJZmkKZmkKClBJRD0kJApFRDE9c2VkMV8ke1BJRH0uc2VkCkVEMj1zZWQyXyR7UElEfS5zZWQKRUQzPXNlZDNfJHtQSUR9LnNlZApFRDQ9c2VkNF8ke1BJRH0uc2VkCkFXMT1hd2sxXyR7UElEfS5hd2sKQVcyPWF3azJfJHtQSUR9LmF3awpUTVA9Z2VuX18ke1BJRH0uYwp0cmFwICJybSAtZiAkRUQxICRFRDIgJEVEMyAkRUQ0ICRBVzEgJEFXMiAkVE1QIiAwIDEgMiA1IDE1CgpBTEw9JFVTRQppZiB0ZXN0ICIkVVNFIiA9IGltcGxlbWVudGVkIDsgdGhlbgoJQ0FMTD0iY2FsbF8iCgljYXQgPiRFRDEgPDxFT0YxCi9eZXh0ZXJuLippbXBsZW1lbnRlZC97CgloCglzL05DVVJTRVNfU1BfTkFNRShcKFteKV0qXCkpL05DVVJTRVNfU1BfTkFNRV9fX1wxLwoJaAoJcy9eLippbXBsZW1lbnRlZDpcKFteIAkqXSpcKS4qL1BfUE9VTkRDaWZfVVNFX1wxX1NVUFBPUlQvcAoJZwoJcy9eZXh0ZXJuIFwoW147XSpcKTsuKi9cMS9wCglnCglzL14uKmltcGxlbWVudGVkOlwoW14gCSpdKlwpLiovUF9QT1VORENlbmRpZi9wCn0KL15leHRlcm4uKmdlbmVyYXRlZC97CgloCglzL14uKmdlbmVyYXRlZDpcKFteIAkqXSpcKS4qL1BfUE9VTkRDaWZfVVNFX1wxX1NVUFBPUlQvcAoJZwoJcy9eZXh0ZXJuIFwoW147XSpcKTsuKi9cMS9wCglnCglzL14uKmdlbmVyYXRlZDpcKFteIAkqXSpcKS4qL1BfUE9VTkRDZW5kaWYvcAp9CkVPRjEKZWxzZQoJQ0FMTD0iIgoJY2F0ID4kRUQxIDw8RU9GMQovXmV4dGVybi4qJHtBTEx9L3sKCWgKCXMvXi4qJHtBTEx9OlwoW14gCSpdKlwpLiovUF9QT1VORENpZl9VU0VfXDFfU1VQUE9SVC9wCglnCglzL15leHRlcm4gXChbXjtdKlwpOy4qL1wxL3AKCWcKCXMvXi4qJHtBTEx9OlwoW14gCSpdKlwpLiovUF9QT1VORENlbmRpZi9wCn0KRU9GMQpmaQoKY2F0ID4kRUQyIDw8RU9GMgovXlBfL2IgbmMKLyh2b2lkKS9iIG5jCglzLywvIGExJSAvCglzLywvIGEyJSAvCglzLywvIGEzJSAvCglzLywvIGE0JSAvCglzLywvIGE1JSAvCglzLywvIGE2JSAvCglzLywvIGE3JSAvCglzLywvIGE4JSAvCglzLywvIGE5JSAvCglzLywvIGExMCUgLwoJcy8sLyBhMTElIC8KCXMvLC8gYTEyJSAvCglzLywvIGExMyUgLwoJcy8sLyBhMTQlIC8KCXMvLC8gYTE1JSAvCglzLyovICogL2cKCXMvJS8gLCAvZwoJcy8pLyB6KS8KCXMvXC5cLlwuIHopLy4uLikvCjpuYwoJcy8oLyAoIC8KCXMvKS8gKS8KRU9GMgoKY2F0ID4kRUQzIDw8RU9GMwovXlBfL3sKCXMvXlBfUE9VTkRDaWZfLyNpZiAvCglzL15QX1BPVU5EQ2VuZGlmLyNlbmRpZi8KCXMvXlBfLy8KCWIgZG9uZQp9CglzLwkJKi8gL2cKCXMvICAqLyAvZwoJcy8gLC8sL2cKCXMvKCAvKC9nCglzLyApLykvZwoJcy8gZ2VuXy8gLwoJcy9eWyAJXSpAWyAJXSpAWyAJXSovCS8KOmRvbmUKRU9GMwoKaWYgdGVzdCAiJFVTRSIgPSBnZW5lcmF0ZWQgOyB0aGVuCmNhdCA+JEVENCA8PEVPRgoJcy9eXCguKlwpIFwoLipcKSAoXCguKlwpKVwkL05DVVJTRVNfRVhQT1JUKFwxKSAoXDIpIChcMykvCkVPRgplbHNlCmNhdCA+JEVENCA8PEVPRgovXlwoLipcKSBcKC4qXCkgKFwoLipcKSlcJC8gewoJaAoJcy9eXCguKlwpIFwoLipcKSAoXCguKlwpKVwkL2V4dGVybiBcMSBjYWxsX1wyIChcMyk7LwoJcAoJZwoJcy9eXCguKlwpIFwoLipcKSAoXCguKlwpKVwkL1wxIGNhbGxfXDIgKFwzKS8KCX0Kcy9cKFteX11cKU5DVVJTRVNfU1BfTkFNRV9fX1woW2EtekEtWl1bYS16QS1aX10qXCkvXDFOQ1VSU0VTX1NQX05BTUUoXDIpL2cKRU9GCmZpCgpjYXQgPiRBVzEgPDxcRU9GMQpCRUdJTgl7CgkJc2tpcD0wOwoJfQovXlBfUE9VTkRDaWYvIHsKCQlwcmludCAiXG4iCgkJcHJpbnQgJDAKCQlza2lwPTA7Cn0KL15QX1BPVU5EQ2VuZGlmLyB7CgkJcHJpbnQgJDAKCQlza2lwPTE7Cn0KJDAgIX4gL15QXy8gewoJaWYgKHNraXApCgkJcHJpbnQgIlxuIgoJc2tpcD0xOwoKCWZpcnN0PSQxCglmb3IgKGkgPSAxOyBpIDw9IE5GOyBpKyspIHsKCQlpZiAoICRpICE9ICJOQ1VSU0VTX0NPTlNUIiApIHsKCQkJZmlyc3QgPSBpOwoJCQlicmVhazsKCQl9Cgl9CglzZWNvbmQgPSBmaXJzdCArIDE7CglyZXR1cm5DYXN0ID0gIiI7CglpZiAoICRmaXJzdCA9PSAiY2h0eXBlIiApIHsKCQlyZXR1cm5UeXBlID0gIkNodHlwZSI7Cgl9IGVsc2UgaWYgKCAkZmlyc3QgPT0gIlNDUkVFTiIgKSB7CgkJcmV0dXJuVHlwZSA9ICJTUCI7Cgl9IGVsc2UgaWYgKCAkZmlyc3QgPT0gIldJTkRPVyIgKSB7CgkJcmV0dXJuVHlwZSA9ICJXaW4iOwoJfSBlbHNlIGlmICggJGZpcnN0ID09ICJhdHRyX3QiIHx8ICRzZWNvbmQgPT0gImF0dHJzZXQiIHx8ICRzZWNvbmQgPT0gInN0YW5kb3V0IiB8fCAkc2Vjb25kID09ICJzdGFuZGVuZCIgfHwgJHNlY29uZCA9PSAid2F0dHJzZXQiIHx8ICRzZWNvbmQgPT0gIndzdGFuZG91dCIgfHwgJHNlY29uZCA9PSAid3N0YW5kZW5kIiApIHsKCQlyZXR1cm5UeXBlID0gIkludEF0dHIiOwoJCXJldHVybkNhc3QgPSAiKGF0dHJfdCkiOwoJfSBlbHNlIGlmICggJGZpcnN0ID09ICJib29sIiB8fCAkZmlyc3QgPT0gIk5DVVJTRVNfQk9PTCIgKSB7CgkJcmV0dXJuVHlwZSA9ICJCb29sIjsKCX0gZWxzZSBpZiAoICRzZWNvbmQgPT0gIioiICkgewoJCXJldHVyblR5cGUgPSAiUHRyIjsKCX0gZWxzZSB7CgkJcmV0dXJuVHlwZSA9ICJDb2RlIjsKCX0KCW15ZnVuYyA9IHNlY29uZDsKCWZvciAoaSA9IHNlY29uZDsgaSA8PSBORjsgaSsrKSB7CgkJaWYgKCRpICE9ICIqIikgewoJCQlteWZ1bmMgPSBpOwoJCQlicmVhazsKCQl9Cgl9CglwcmludCAkMDsKCXByaW50ICJ7IjsKCWFyZ2NvdW50ID0gMTsKCWNoZWNrID0gTkYgLSAxOwoJaWYgKCRjaGVjayA9PSAidm9pZCIpCgkJYXJnY291bnQgPSAwOwoJaWYgKGFyZ2NvdW50ICE9IDApIHsKCQlmb3IgKGkgPSAxOyBpIDw9IE5GOyBpKyspCgkJCWlmICgkaSA9PSAiLCIpCgkJCQlhcmdjb3VudCsrOwoJfQoKCSMgc3VwcHJlc3MgdHJhY2UtY29kZSBmb3IgZnVuY3Rpb25zIHRoYXQgd2UgY2Fubm90IGRvIHByb3Blcmx5IGhlcmUsCgkjIHNpbmNlIHRoZXkgcmV0dXJuIGRhdGEuCglkb3RyYWNlID0gMTsKCWlmICgkbXlmdW5jIH4gL2lubnN0ci8pCgkJZG90cmFjZSA9IDA7CglpZiAoJG15ZnVuYyB+IC9pbm53c3RyLykKCQlkb3RyYWNlID0gMDsKCgkjIHdvcmthcm91bmQgZnVuY3Rpb25zIHRoYXQgd2UgZG8gbm90IHBhcnNlIHByb3Blcmx5CglpZiAoJG15ZnVuYyB+IC9yaXBvZmZsaW5lLykgewoJCWRvdHJhY2UgPSAwOwoJCWFyZ2NvdW50ID0gMjsKCQlpZiAoJG15ZnVuYyB+IC9OQ1VSU0VTX1NQX05BTUUvKSB7CgkJCWFyZ2NvdW50ID0gMzsKCQl9Cgl9CglpZiAoJG15ZnVuYyB+IC93dW5jdHJsLykgewoJCWRvdHJhY2UgPSAwOwoJfQoKCWNhbGwgPSAiQEBUKChUX0NBTExFRChcIiIKCWFyZ3MgPSAiIgoJY29tbWEgPSAiIgoJbnVtID0gMDsKCXBvaW50ZXIgPSAwOwoJdmFfbGlzdCA9IDA7Cgl2YXJhcmdzID0gMDsKCWFyZ3R5cGUgPSAiIgoJZm9yIChpID0gbXlmdW5jOyBpIDw9IE5GOyBpKyspIHsKCQljaCA9ICRpOwoJCWlmICggY2ggPT0gIioiICkgewoJCQlwb2ludGVyID0gMTsKCQl9IGVsc2UgaWYgKCBjaCA9PSAidmFfbGlzdCIgKSB7CgkJCXZhX2xpc3QgPSAxOwoJCX0gZWxzZSBpZiAoIGNoID09ICIuLi4iICkgewoJCQl2YXJhcmdzID0gMTsKCQl9IGVsc2UgaWYgKCBjaCA9PSAiY2hhciIgKSB7CgkJCWFyZ3R5cGUgPSAiY2hhciI7CgkJfSBlbHNlIGlmICggY2ggPT0gImludCIgKSB7CgkJCWFyZ3R5cGUgPSAiaW50IjsKCQl9IGVsc2UgaWYgKCBjaCA9PSAic2hvcnQiICkgewoJCQlhcmd0eXBlID0gInNob3J0IjsKCQl9IGVsc2UgaWYgKCBjaCA9PSAiY2h0eXBlIiApIHsKCQkJYXJndHlwZSA9ICJjaHR5cGUiOwoJCX0gZWxzZSBpZiAoIGNoID09ICJhdHRyX3QiIHx8IGNoID09ICJOQ1VSU0VTX0FUVFJfVCIgKSB7CgkJCWFyZ3R5cGUgPSAiYXR0ciI7CgkJfQoKCQlpZiAoIGNoID09ICIsIiB8fCBjaCA9PSAiKSIgKSB7CgkJCWFyZ2Nhc3QgPSAiIjsKCQkJaWYgKHZhX2xpc3QpIHsKCQkJCWNhbGwgPSBjYWxsICIlcyIKCQkJfSBlbHNlIGlmICh2YXJhcmdzKSB7CgkJCQljYWxsID0gY2FsbCAiJXMiCgkJCX0gZWxzZSBpZiAocG9pbnRlcikgewoJCQkJaWYgKCBhcmd0eXBlID09ICJjaGFyIiApIHsKCQkJCQljYWxsID0gY2FsbCAiJXMiCgkJCQkJY29tbWEgPSBjb21tYSAiX25jX3Zpc2J1ZjIoIiBudW0gIiwiCgkJCQkJcG9pbnRlciA9IDA7CgkJCQl9IGVsc2UgewoJCQkJCWNhbGwgPSBjYWxsICIlcCIKCQkJCQljb21tYSA9IGNvbW1hICIoY29uc3Qgdm9pZCAqKSIKCQkJCX0KCQkJfSBlbHNlIGlmIChhcmdjb3VudCAhPSAwKSB7CgkJCQlpZiAoIGFyZ3R5cGUgPT0gImludCIgfHwgYXJndHlwZSA9PSAic2hvcnQiICkgewoJCQkJCWNhbGwgPSBjYWxsICIlZCIKCQkJCQlhcmd0eXBlID0gIiIKCQkJCX0gZWxzZSBpZiAoIGFyZ3R5cGUgIT0gIiIgKSB7CgkJCQkJY2FsbCA9IGNhbGwgIiVzIgoJCQkJCWNvbW1hID0gY29tbWEgIl90cmFjZSIgYXJndHlwZSAiMigiIG51bSAiLCIKCQkJCQlpZiAoYXJndHlwZSA9PSAiYXR0ciIpIHsKCQkJCQkJYXJnY2FzdCA9ICIoY2h0eXBlKSI7CgkJCQkJfQoJCQkJfSBlbHNlIHsKCQkJCQljYWxsID0gY2FsbCAiJSNseCIKCQkJCQljb21tYSA9IGNvbW1hICIobG9uZykiCgkJCQl9CgkJCX0KCQkJaWYgKGNoID09ICIsIikgewoJCQkJYXJncyA9IGFyZ3MgY29tbWEgImEiICsrbnVtOwoJCQl9IGVsc2UgaWYgKCBhcmdjb3VudCAhPSAwICkgewoJCQkJaWYgKCB2YV9saXN0ICkgewoJCQkJCWFyZ3MgPSBhcmdzIGNvbW1hICJcInZhX2xpc3RcIiIKCQkJCX0gZWxzZSBpZiAoIHZhcmFyZ3MgKSB7CgkJCQkJYXJncyA9IGFyZ3MgY29tbWEgIlwiLi4uXCIiCgkJCQl9IGVsc2UgewoJCQkJCWFyZ3MgPSBhcmdzIGNvbW1hIGFyZ2Nhc3QgInoiCgkJCQl9CgkJCX0KCQkJY2FsbCA9IGNhbGwgY2gKCQkJaWYgKHBvaW50ZXIgPT0gMCAmJiBhcmdjb3VudCAhPSAwICYmIGFyZ3R5cGUgIT0gIiIgKQoJCQkJYXJncyA9IGFyZ3MgIikiCgkJCWlmIChhcmdzICE9ICIiKQoJCQkJY29tbWEgPSAiLCAiCgkJCXBvaW50ZXIgPSAwOwoJCQlhcmd0eXBlID0gIiIKCQl9CgkJaWYgKCBpID09IG15ZnVuYyB8fCBjaCA9PSAiKCIgKQoJCQljYWxsID0gY2FsbCBjaAoJfQoJY2FsbCA9IGNhbGwgIlwiKSIKCWlmIChhcmdzICE9ICIiKQoJCWNhbGwgPSBjYWxsICIsICIgYXJncwoJY2FsbCA9IGNhbGwgIikpOyAiCgoJaWYgKGRvdHJhY2UpCgkJcHJpbnRmICIlcyIsIGNhbGwKCglpZiAobWF0Y2goJDAsICJedm9pZCIpKSB7CgkJY2FsbCA9ICIiCgl9IGVsc2UgaWYgKGRvdHJhY2UpIHsKCQljYWxsID0gc3ByaW50ZigicmV0dXJuJXMoICIsIHJldHVyblR5cGUpOwoJCWlmIChyZXR1cm5DYXN0ICE9ICIiKSB7CgkJCWNhbGwgPSBjYWxsIHJldHVybkNhc3Q7CgkJfQoJfSBlbHNlIHsKCQljYWxsID0gIkBAcmV0dXJuICI7Cgl9CgoJY2FsbCA9IGNhbGwgJG15ZnVuYyAiKCI7Cglmb3IgKGkgPSAxOyBpIDwgYXJnY291bnQ7IGkrKykgewoJCWlmIChpICE9IDEpCgkJCWNhbGwgPSBjYWxsICIsICI7CgkJY2FsbCA9IGNhbGwgImEiIGk7Cgl9CglpZiAoIGFyZ2NvdW50ICE9IDAgJiYgJGNoZWNrICE9ICIuLi4iICkgewoJCWlmIChhcmdjb3VudCAhPSAxKQoJCQljYWxsID0gY2FsbCAiLCAiOwoJCWNhbGwgPSBjYWxsICJ6IjsKCX0KCWlmICghbWF0Y2goJDAsICJedm9pZCIpKQoJCWNhbGwgPSBjYWxsICIpICI7CglpZiAoZG90cmFjZSkgewoJCWNhbGwgPSBjYWxsICIpIjsKCX0KCXByaW50IGNhbGwgIjsiCgoJaWYgKG1hdGNoKCQwLCAiXnZvaWQiKSkKCQlwcmludCAiQEByZXR1cm5Wb2lkOyIKCXByaW50ICJ9IjsKfQpFT0YxCgpjYXQgPiRBVzIgPDxFT0YxCkJFR0lOCQl7CgkJcHJpbnQgIi8qIgoJCXByaW50ICIgKiBETyBOT1QgRURJVCBUSElTIEZJTEUgQlkgSEFORCEiCgkJcHJpbnRmICIgKiBJdCBpcyBnZW5lcmF0ZWQgYnkgJDAgJXMuXG4iLCAiJFVTRSIKCQlpZiAoICIkVVNFIiA9PSAiZ2VuZXJhdGVkIiApIHsKCQkJcHJpbnQgIiAqIgoJCQlwcmludCAiICogVGhpcyBpcyBhIGZpbGUgb2YgdHJpdmlhbCBmdW5jdGlvbnMgZ2VuZXJhdGVkIGZyb20gbWFjcm8iCgkJCXByaW50ICIgKiBkZWZpbml0aW9ucyBpbiBjdXJzZXMuaCB0byBzYXRpc2Z5IHRoZSBYU0kgQ3Vyc2VzIHJlcXVpcmVtZW50IgoJCQlwcmludCAiICogdGhhdCBldmVyeSBtYWNybyBhbHNvIGV4aXN0IGFzIGEgY2FsbGFibGUgZnVuY3Rpb24uIgoJCQlwcmludCAiICoiCgkJCXByaW50ICIgKiBJdCB3aWxsIG5ldmVyIGJlIGxpbmtlZCB1bmxlc3MgeW91IGNhbGwgb25lIG9mIHRoZSBlbnRyeSIKCQkJcHJpbnQgIiAqIHBvaW50cyB3aXRoIGl0cyBub3JtYWwgbWFjcm8gZGVmaW5pdGlvbiBkaXNhYmxlZC4gIEluIHRoYXQiCgkJCXByaW50ICIgKiBjYXNlLCBpZiB5b3UgaGF2ZSBubyBzaGFyZWQgbGlicmFyaWVzLCBpdCB3aWxsIGluZGlyZWN0bHkiCgkJCXByaW50ICIgKiBwdWxsIG1vc3Qgb2YgdGhlIHJlc3Qgb2YgdGhlIGxpYnJhcnkgaW50byB5b3VyIGxpbmsgaW1hZ2UuIgoJCX0KCQlwcmludCAiICovIgoJCXByaW50ICIjZGVmaW5lIE5DVVJTRVNfQVRUUl9UIGludCIKCQlwcmludCAiI2luY2x1ZGUgPG5jdXJzZXNfY2ZnLmg+IgoJCXByaW50ICIiCgkJcHJpbnQgIiN1bmRlZiBOQ1VSU0VTX05PTUFDUk9TCS8qIF90aGlzXyBmaWxlIHVzZXMgbWFjcm9zICovIgoJCXByaW50ICIiCgkJcHJpbnQgIiNpbmNsdWRlIDxjdXJzZXMucHJpdi5oPiIKCQlwcmludCAiIgoJCXByaW50ICIjdW5kZWYgdndfc2NhbnciCgkJcHJpbnQgIiN1bmRlZiB2d3NjYW53IgoJCXByaW50ICIiCgkJcHJpbnQgIiN1bmRlZiB2d19wcmludHciCgkJcHJpbnQgIiN1bmRlZiB2d3ByaW50dyIKCQl9Ci9eREVDTEFSQVRJT05TLwl7c3RhcnQgPSAxOyBuZXh0O30KCQl7CgkJaWYgKHN0YXJ0KSB7CgkJCWlmICggIiRVU0UiID09ICJnZW5lcmF0ZWQiICkgewoJCQkJcHJpbnQgXCQwOwoJCQl9IGVsc2UgaWYgKCBcJDAgfiAvXlt7fV0/XCQvICkgewoJCQkJcHJpbnQgXCQwOwoJCQl9IGVsc2UgaWYgKCBcJDAgfiAvOy8gKSB7CgkJCQlwcmludCBcJDA7CgkJCX0gZWxzZSB7CgkJCQljYWxsc1tzdGFydF0gPSBcJDA7CgkJCQlwcmludCBcJDA7CgkJCQlzdGFydCsrOwoJCQl9CgkJfQoJCX0KRU5ECQl7CgkJaWYgKCAiJFVTRSIgIT0gImdlbmVyYXRlZCIgKSB7CgkJCXByaW50ICJpbnQgbWFpbih2b2lkKSIKCQkJcHJpbnQgInsiCgkJCWZvciAobiA9IDE7IG4gPCBzdGFydDsgKytuKSB7CgkJCQl2YWx1ZSA9IGNhbGxzW25dOwoJCQkJaWYgKCB2YWx1ZSAhfiAvUF9QT1VOREMvICkgewoJCQkJCWdzdWIoL1tbOmJsYW5rOl1dKy8sIiAiLHZhbHVlKTsKCQkJCQlzdWIoL15bWzphbG51bTpdX10rIC8sIiIsdmFsdWUpOwoJCQkJCXN1YigvXlwqIC8sIiIsdmFsdWUpOwoJCQkJCWdzdWIoL1tbOmFsbnVtOl1fXSsgXCogLywiIix2YWx1ZSk7CgkJCQkJZ3N1YigvIChjb25zdCkgLywiICIsdmFsdWUpOwoJCQkJCWdzdWIoLyAoaW50fHNob3J0fGF0dHJfdHxjaHR5cGV8d2NoYXJfdHxOQ1VSU0VTX0JPT0x8TkNVUlNFU19PVVRDfE5DVVJTRVNfT1VUQ19zcHx2YV9saXN0KSAvLCIgIix2YWx1ZSk7CgkJCQkJZ3N1YigvIHZvaWQgLywiIix2YWx1ZSk7CgkJCQkJc3ViKC9eLywiY2FsbF8iLHZhbHVlKTsKCQkJCQlnc3ViKC8gKGFbWzpkaWdpdDpdXXx6KSAvLCAiIDAgIiwgdmFsdWUpOwoJCQkJCWdzdWIoLyBpbnRbWzpibGFuazpdXSpbKF1bXildK1spXVsoXVteKV0rWyldLywgIjAiLCB2YWx1ZSk7CgkJCQkJcHJpbnRmICJcdCVzO1xuIiwgdmFsdWU7CgkJCQl9IGVsc2UgewoJCQkJCXByaW50IHZhbHVlOwoJCQkJfQoJCQl9CgkJCXByaW50ICIJcmV0dXJuIDA7IgoJCQlwcmludCAifSIKCQl9CgkJfQpFT0YxCgpjYXQgPiRUTVAgPDxFT0YKI2luY2x1ZGUgPG5jdXJzZXNfY2ZnLmg+CiN1bmRlZiBOQ1VSU0VTX05PTUFDUk9TCiNpbmNsdWRlIDxjdXJzZXMuaD4KI2luY2x1ZGUgPHRlcm0uaD4KI2luY2x1ZGUgPHVuY3RybC5oPgoKREVDTEFSQVRJT05TCgpFT0YKCnNlZCAtbiAtZiAkRUQxIFwKfCBzZWQgLWUgJ3MvTkNVUlNFU19FWFBPUlQoXCguKlwpKSBcKC4qXCkgKFwoLipcKSkvXDEgXDIoXDMpLycgXAp8IHNlZCAtZiAkRUQyIFwKfCAkQVdLIC1mICRBVzEgdXNpbmc9JFVTRSBcCnwgc2VkIFwKCS1lICdzLyBbIF0qJC8vZycgXAoJLWUgJ3MvXlwoW2EtekEtWl9dW2EtekEtWl9dKlsgKl0qXCkvXDEgZ2VuXy8nIFwKCS1lICdzL2dlbl8kLy8nIFwKCS1lICdzLyAgLyAvZycgPj4kVE1QCgokcHJlcHJvY2Vzc29yICRUTVAgMj4vZGV2L251bGwgXAp8IHNlZCBcCgktZSAncy8gIC8gL2cnIFwKCS1lICdzL14gLy8nIFwKCS1lICdzL19Cb29sL05DVVJTRVNfQk9PTC9nJyBcCnwgJEFXSyAtZiAkQVcyIFwKfCBzZWQgLWYgJEVEMyBcCnwgc2VkIFwKCS1lICdzL14uKlRfQ0FMTEVELipyZXR1cm5Db2RlKCBcKFthLXpdLiopIFwpKTsvCXJldHVybiBcMTsvJyBcCgktZSAncy9eLipUX0NBTExFRC4qcmV0dXJuQ29kZSggXCgod21vdmUuKikgXCkpOy8JcmV0dXJuIFwxOy8nIFwKCS1lICdzL2dlbl8vLycgXAoJLWUgJ3MvXlsgCV0qIy8jLycgXAoJLWUgJy8jaWRlbnQvZCcgXAoJLWUgJy8jbGluZS9kJyBcCnwgc2VkIC1mICRFRDQK | base64 -d > ${S}/ncurses/base/MKlib_gen.sh' >> "$NCD/ncurses_5.9.bb"
-          echo '}' >> "$NCD/ncurses_5.9.bb"
-          # bison 2.5: gnulib gets bug — καθαρισμός generated stdio.h
-          BD=src/apps_proc/oe-core/meta/recipes-devtools/bison
-          echo '' >> "$BD/bison_2.5.bb"
-          echo 'do_compile_prepend() {' >> "$BD/bison_2.5.bb"
-          echo '    printf "#include <stdio.h>\\n\\nvoid\\nfseterr (FILE *fp)\\n{\\n  (void) fp;\\n}\\n" > ${S}/lib/fseterr.c' >> "$BD/bison_2.5.bb"
-          echo '    for f in ${S}/lib/stdio.h ${B}/lib/stdio.h; do' >> "$BD/bison_2.5.bb"
-          echo '        [ -f $f ] && sed -i "/^#undef gets$/d; /_GL_WARN_ON_USE (gets/d" $f || true' >> "$BD/bison_2.5.bb"
-          echo '    done' >> "$BD/bison_2.5.bb"
-          echo '    for f in ${S}/config.h ${B}/config.h; do' >> "$BD/bison_2.5.bb"
-          echo '        [ -f $f ] && echo "#define HAVE___FSETERR 1" >> $f || true' >> "$BD/bison_2.5.bb"
-          echo '    done' >> "$BD/bison_2.5.bb"
-          echo '}' >> "$BD/bison_2.5.bb"
-          # bison: regen-proof patches στα templates
-          echo 'do_configure_append() {' >> "$BD/bison_2.5.bb"
-          echo '    sed -i "/_GL_WARN_ON_USE (gets/d; /^# undef gets$/d" ${S}/lib/stdio.in.h || true' >> "$BD/bison_2.5.bb"
-          echo '    echo "#define HAVE___FSETERR 1" >> ${S}/config.h.in' >> "$BD/bison_2.5.bb"
-          echo '}' >> "$BD/bison_2.5.bb"
-          # linux-libc-headers 3.1: headers εγκαθίστανται read-only → chmod πριν το cleanup
-          LLH=src/apps_proc/oe-core/meta/recipes-kernel/linux-libc-headers
-          echo '' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo 'do_install() {' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    set_arch' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix} ARCH=$ARCH' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '    rm -f ${D}${exec_prefix}/include/scsi/scsi.h || true' >> "$LLH/linux-libc-headers_3.1.bb"
-          echo '}' >> "$LLH/linux-libc-headers_3.1.bb"
-          # alsa-intf: αφαίρεση acdbloader (δεν υπάρχει στο GPL)
-          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
-          grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
-          # mdm-bootimg: αφαίρεση του ανύπαρκτου kernel-tests package
-          sed -i '/kernel-tests \\/d' src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc
-          grep -c "kernel-tests" src/apps_proc/oe-core/meta-msm/recipes/images/mdm-bootimg.inc || echo "kernel-tests: αφαιρέθηκε"
-          # eglibc 2.13: το SVN του eglibc.org είναι νεκρό — Launchpad orig tarballs
-          EGD=src/apps_proc/oe-core/meta/recipes-core/eglibc
-          sed -i 's|^SRC_URI = "svn://www.eglibc.org/svn/branches/;module=${EGLIBC_BRANCH};proto=http \\|SRC_URI = "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\|' "$EGD/eglibc_2.13.bb"
-          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' "$EGD/eglibc_2.13.bb"
-          sed -i '/^PR_append = "+svnr/d' "$EGD/eglibc_2.13.bb"
-          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> "$EGD/eglibc_2.13.bb"
-          grep -n "^SRC_URI\|^S =\|md5sum" "$EGD/eglibc_2.13.bb" | head -4
-          # cross-localedef (eglibc-2_12 branch → 2.12.1 tarball)
-          sed -i 's|^SRC_URI = "svn://www.eglibc.org/svn/branches/;module=${EGLIBC_BRANCH};proto=http "|SRC_URI = "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz"|' "$EGD/cross-localedef-native_2.13.bb"
-          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/localedef"|S = "${WORKDIR}/eglibc-2.12.1/localedef"|' "$EGD/cross-localedef-native_2.13.bb"
-          sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' "$EGD/cross-localedef-native_2.13.bb"
-          sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' "$EGD/cross-localedef-native_2.13.bb"
-          echo 'SRC_URI[md5sum] = "99637e034aed7ddfb6056715e69d8e19"' >> "$EGD/cross-localedef-native_2.13.bb"
-          # binutils 2.22: gold options.cc pointer comparison με modern g++
-          BUD=src/apps_proc/oe-core/meta/recipes-devtools/binutils
-          echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils-cross_2.22.bb"
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$BUD/binutils-cross_2.22.bb"
-          echo 'CXXFLAGS += "-fpermissive -Wno-narrowing"' >> "$BUD/binutils_2.22.bb"
-          echo 'CFLAGS += "-Wno-error=unused-value -Wno-error=implicit-fallthrough -Wno-error=cast-function-type"' >> "$BUD/binutils_2.22.bb"
+          # samba PRODUCT_MEMORY
+          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
 
-          echo 'do_compile_prepend() {' >> "$BUD/binutils-cross_2.22.bb"
-          echo '    sed -i "s/ || retval < 0)/ || *retval < 0)/" ${S}/gold/options.cc 2>/dev/null || true' >> "$BUD/binutils-cross_2.22.bb"
-          echo '    for f in $(find ${S} ${B} -name Makefile 2>/dev/null); do sed -i "s/^CXXFLAGS = /CXXFLAGS = -fpermissive -Wno-narrowing /" $f; done' >> "$BUD/binutils-cross_2.22.bb"
-          echo '}' >> "$BUD/binutils-cross_2.22.bb"
-          # gettext-native 0.18.1.1: gnulib gets fix
-          GTD=src/apps_proc/oe-core/meta/recipes-core/gettext
-          echo 'do_configure_prepend() {' >> "$GTD/gettext_0.18.1.1.bb"
-          echo '    find ${S} -name stdio.h -path "*gnulib*" -exec sed -i "/_GL_WARN_ON_USE (gets/d" {} \;' >> "$GTD/gettext_0.18.1.1.bb"
-          echo '}' >> "$GTD/gettext_0.18.1.1.bb"
+          # tp-link-common stub
+          echo '# stub' > meta-msm/classes/tp-link-common.bbclass
 
-          # openssl-native: perlpath.pl require find.pl — modern perl χρειάζεται PERL5LIB
-          OSD=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
-          echo '' >> "$OSD/openssl_1.0.0f.bb"
-          echo 'do_configure_prepend() {' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    echo IyEvdXNyL2Jpbi9lbnYgcGVybAojCiMgbW9kZXJuaXplZCBwZXJscGF0aC5wbCAoRmlsZTo6RmluZCBpbnN0ZWFkIG9mIHBlcmw0IGZpbmQucGwpCnVzZSBGaWxlOjpGaW5kOwoKJCNBUkdWID09IDAgfHwgcHJpbnQgU1RERVJSICJ1c2FnZTogcGVybHBhdGggbmV3cGF0aCAgKGVnIC91c3IvYmluKVxuIjsKCnN1YiB3YW50ZWQKewogICAgcmV0dXJuIHVubGVzcyAvXC5wbCQvIHx8IC9eW0NjXW9uZmlndXIvOwogICAgcmV0dXJuIGlmIC1kICRfOwogICAgb3BlbihJTiwgIjwkXyIpIHx8IGRpZSAidW5hYmxlIHRvIG9wZW4gJF86ICQhXG4iOwogICAgbXkgQGEgPSA8SU4+OwogICAgY2xvc2UoSU4pOwoKICAgIGlmICgtZCAkQVJHVlswXSkgewogICAgICAgICRhWzBdID0gIiMhJEFSR1ZbMF0vcGVybFxuIjsKICAgIH0gZWxzZSB7CiAgICAgICAgJGFbMF0gPSAiIyEkQVJHVlswXVxuIjsKICAgIH0KCiAgICBteSAkbmV3ID0gIiRfLm5ldyI7CiAgICBvcGVuKE9VVCwgIj4kbmV3IikgfHwgZGllICJ1bmFibGUgdG8gb3BlbiAkbmV3OiAkIVxuIjsKICAgIHByaW50IE9VVCBAYTsKICAgIGNsb3NlKE9VVCk7CiAgICByZW5hbWUoJG5ldywgJF8pOwp9CgpmaW5kKFwmd2FudGVkLCAiLiIpOwoxOwo= | base64 -d > ${S}/util/perlpath.pl' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    export PERL5LIB="${S}/util:${S}:$PERL5LIB"' >> "$OSD/openssl_1.0.0f.bb"
-          echo '}' >> "$OSD/openssl_1.0.0f.bb"
-          echo 'do_install() {' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    oe_runmake INSTALL_PREFIX="${D}" MANDIR="${mandir}" install_sw' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    oe_libinstall -so libcrypto ${D}${libdir}' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    oe_libinstall -so libssl ${D}${libdir}' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    install -d ${D}${includedir}' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    cp --dereference -R include/openssl ${D}${includedir}' >> "$OSD/openssl_1.0.0f.bb"
-          echo '}' >> "$OSD/openssl_1.0.0f.bb"
-          echo 'do_compile_prepend() {' >> "$OSD/openssl_1.0.0f.bb"
-          echo '    export PERL5LIB="${S}/util:${S}:$PERL5LIB"' >> "$OSD/openssl_1.0.0f.bb"
-          echo '}' >> "$OSD/openssl_1.0.0f.bb"
-          # loc-api: αφαίρεση qmi-framework (δεν υπάρχει στο GPL)
-          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
-          # openssl.inc: φίλε το EXTRA_OECONF από το Configure (αυστηρό script, χokoσε το --disable-nls)
-          OSD2=src/apps_proc/oe-core/meta/recipes-connectivity/openssl
-          python3 -c "p='src/apps_proc/oe-core/meta/recipes-connectivity/openssl/openssl.inc'; s=open(p).read(); s=s.replace('perl ./Configure \${EXTRA_OECONF} shared','perl ./Configure shared'); open(p,'w').write(s)"
-          grep -n 'perl ./Configure' "$OSD2/openssl.inc"
-          grep -n "^DEPENDS" src/apps_proc/oe-core/meta-msm/recipes/loc-api/loc-api_git.bb
-          # Stub: το tp-link-common.bbclass λείπει από το GPL (το κληρονομεί μόνο το libcjson)
-          printf '# Minimal stub: tp-link-common.bbclass missing from GPL tarball\n' > src/apps_proc/oe-core/meta-msm/classes/tp-link-common.bbclass
-          ls src/apps_proc/oe-core/meta-msm/classes/
-          ls src/apps_proc/oe-core/build/conf/
-          find src -name "buildname.bbclass" || echo "buildname.bbclass NOT SHIPPED (θα το παρακάμψουμε)"
+          # Remove dependency on missing packages
+          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' meta-msm/recipes/alsa-intf/alsa-intf_git.bb
+          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' meta-msm/recipes/loc-api/loc-api_git.bb
+          sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' meta-msm/recipes/hostap/hostap_git.bb
+          sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
+          sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
+          sed -i '/kernel-tests \\/d' meta-msm/recipes/images/mdm-bootimg.inc
 
-      - name: Build Python 2.7 (Yocto-era SDK requires it)
-        continue-on-error: true
-        run: |
-          set +e
-          wget -q https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
-          tar -xzf Python-2.7.18.tgz
-          cd Python-2.7.18
-          ./configure --prefix=/opt/py2 --with-ensurepip=no > ../py2-configure.log 2>&1
-          make -j4 -s > ../py2-make.log 2>&1
-          echo "make exit=$?"
-          sudo make install > ../py2-install.log 2>&1
-          echo "install exit=$?"
-          sudo ln -sf /opt/py2/bin/python2 /opt/py2/bin/python
-          /opt/py2/bin/python --version
+          # gcc: use 4.6.4 tarballs
+          GCCD=meta/recipes-devtools/gcc
+          sed -i 's|^PV = .*|PV = "4.6.4"|' $GCCD/gcc-4.6.inc
+          sed -i 's|^BINV = .*|BINV = "4.6.4"|' $GCCD/gcc-4.6.inc
+          sed -i 's|^S = .*|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' $GCCD/gcc-4.6.inc
+          sed -i 's|^B = .*|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' $GCCD/gcc-4.6.inc
+          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore \\\n\t   https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2;name=gccgpp \\|' $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gcccore.md5sum] = "ffb7878e23d915358c820d0392e22750"' >> $GCCD/gcc-4.6.inc
+          echo 'SRC_URI[gccgpp.md5sum] = "7fa36715b57a2cb9bfc66bac4ecb1b84"' >> $GCCD/gcc-4.6.inc
+          sed -i '/file:\/\/.*uclibc/d' $GCCD/gcc-4.6.inc
+          sed -i '/gcc-flags-for-build.patch/d' $GCCD/gcc-4.6.inc
+          sed -i '/^.*file:\/\/.*\.patch/d' $GCCD/gcc-4.6.inc
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $GCCD/gcc-4.6.inc
+          echo 'do_compile() {' > $GCCD/gcc-cross-initial_4.6.bb
+          echo '    oe_runmake all-gcc' >> $GCCD/gcc-cross-initial_4.6.bb
+          echo '}' >> $GCCD/gcc-cross-initial_4.6.bb
 
-      - name: "Full build - TP-Link set_bb_env.sh procedure, bitbake mdm-image"
-        continue-on-error: true
-        run: |
-          set +e
-          export PATH=/opt/py2/bin:$PATH
-          export WSDIR="$PWD"
-          echo "python: $(python --version 2>&1)"
-          cd src/apps_proc/oe-core
-          # Patch bitbake ΠΡΙΝ το sourcing (το set_bb_env.sh αλλάζει CWD):
-          # όταν αποτυγχάνει expansion, να λέει και το αρχείο
-          sed -i 's|^    except:|    except Exception as e:|' bitbake/lib/bb/data.py
-          sed -i 's|bb.note("Error expanding variable %s" % key)|bb.note("Error expanding variable %s in FILE=%s DETAIL=%s" % (key, d.getVar("FILE", True), str(e)))|' bitbake/lib/bb/data.py
-          echo "===== bitbake patch verification ====="
-          grep -n "Error expanding variable" bitbake/lib/bb/data.py
-          # Η επίσημη διαδικασία της TP-Link: παράγει bblayers.conf (όλα τα meta*)
-          # και κάνει source το oe-init-build-env μέσα της.
-          . build/conf/set_bb_env.sh > "$WSDIR/init.log" 2>&1
-          echo "set_bb_env exit=$? — CWD: $(pwd)"
-          echo "===== conf/bblayers.conf ====="
-          cat conf/bblayers.conf
-          # Το GPL δεν περιλαμβάνει το buildname.bbclass της TP-Link — παρακάμψη:
-          sed -i 's/^USER_CLASSES.*/USER_CLASSES = "image-mklibs"/' conf/local.conf
-          sed -i 's|^BUILDNAME.*|BUILDNAME = "M7350V3-custom"|' conf/local.conf
-          grep -q "^DDR_SIZE" conf/local.conf || echo 'DDR_SIZE = "512M"' >> conf/local.conf
-          # τα mirrors του 2014 (codeaurora/autobuilder) είναι νεκρά και γυρνάνε 0-byte
-          # αρχεία που σπάνε τα checksums — κλείνε τα, άσε τα upstream originals
-          echo 'PREMIRRORS = "http://.*/.* https://sources.openembedded.org/ \n ftp://.*/.* https://sources.openembedded.org/ \n"' >> conf/local.conf
-          echo 'MIRRORS = ""' >> conf/local.conf
-          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
-          echo 'PREFERRED_VERSION_m4 = "1.4.19"' >> conf/local.conf
-          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
-          echo 'PREFERRED_VERSION_gzip-native = "1.12"' >> conf/local.conf
-          echo 'PREFERRED_VERSION_gzip = "1.12"' >> conf/local.conf
-          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> conf/local.conf
-          echo 'INHERIT_remove = "sanity"' >> conf/local.conf
-          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> conf/local.conf
-          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> conf/local.conf
+          # eglibc: launchpad tarballs
+          EGD=meta/recipes-core/eglibc
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http \\\\|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\\\|" $EGD/eglibc_2.13.bb
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' $EGD/eglibc_2.13.bb
+          sed -i '/^PR_append = "+svnr/d' $EGD/eglibc_2.13.bb
+          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> $EGD/eglibc_2.13.bb
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http |https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz |" $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/localedef"|S = "${WORKDIR}/eglibc-2.12.1/localedef"|' $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' $EGD/cross-localedef-native_2.13.bb
 
+          # ncurses
+          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> meta/recipes-core/ncurses/ncurses_5.9.bb
 
-          echo 'EXTRA_OECONF_append = " --disable-nls"' >> conf/local.conf
-          find downloads -type f -size 0 -delete 2>/dev/null
-          grep -E "^(USER_CLASSES|BUILDNAME|DDR_SIZE|PREMIRRORS|MIRRORS)" conf/local.conf
-          echo "===== PARSE PROBE (single-threaded, deterministic) ====="
-          cp conf/bblayers.conf "$WSDIR/bblayers-generated.conf"
-          BB_NUMBER_PARSE_THREADS=1 bitbake -p -DD > "$WSDIR/parse.log" 2>&1
+          # binutils MAKEINFO
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> meta/recipes-devtools/binutils/binutils_2.22.bb
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> meta/recipes-devtools/binutils/binutils-cross_2.22.bb
+
+          # gettext gets fix
+          find meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
+
+          # elfutils URL fix
+          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' meta/recipes-devtools/elfutils/elfutils_0.148.bb
+
+          # git URL fix
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta/recipes-devtools/git/git_1.7.7.bb
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta-msm/recipes/git/git-native_1.7.7.bb
+
+          # Pre-download critical sources
+          DL=build/downloads
+          mkdir -p $DL
+          wget -q "https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" -O $DL/pseudo-1.2.tar.bz2
+          touch $DL/pseudo-1.2.tar.bz2.done
+          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" -O $DL/gcc-core-4.6.4.tar.bz2
+          touch $DL/gcc-core-4.6.4.tar.bz2.done
+          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" -O $DL/gcc-g++-4.6.4.tar.bz2
+          touch $DL/gcc-g++-4.6.4.tar.bz2.done
+          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" -O $DL/eglibc_2.13.orig.tar.gz
+          touch $DL/eglibc_2.13.orig.tar.gz.done
+          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" -O $DL/eglibc_2.12.1.orig.tar.gz
+          touch $DL/eglibc_2.12.1.orig.tar.gz.done
+          wget -q "https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2" -O $DL/binutils-2.22.tar.bz2
+          touch $DL/binutils-2.22.tar.bz2.done
+
+          # Build
+          . build/conf/set_bb_env.sh
+          export MACHINE=mdm9625
+          echo 'PREFERRED_VERSION_m4-native = "1.4.19"' >> build/conf/local.conf
+          echo 'PREFERRED_VERSION_pseudo-native = "1.9.0"' >> build/conf/local.conf
+          echo 'BB_NUMBER_PARSE_THREADS = "1"' >> build/conf/local.conf
+          echo 'INHERIT_remove = "sanity"' >> build/conf/local.conf
+
+          bitbake -p > ../parse.log 2>&1
           echo "parse exit=$?"
-          grep -n "Error expanding" "$WSDIR/parse.log" | head -5
-          if grep -q "Error expanding" "$WSDIR/parse.log"; then
-            echo "===== FAILURE CONTEXT ====="
-            tail -40 "$WSDIR/parse.log"
-            exit 0
-          fi
-          tail -10 "$WSDIR/parse.log"
-          XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
-          echo "xgcc: $XG"
-          if [ -n "$XG" ]; then
-            echo 'int main(){return 0;}' > /tmp/t.c
-            "$XG" -c /tmp/t.c -o /tmp/t.o 2>&1 | head -8
-            echo "xgcc test exit: $?"
-          fi
-          echo "===== PRE-SEED MISSING DOWNLOADS ====="
-          seed() {
-            f="downloads/$1"; shift; want="$1"; shift
-            if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
-              touch "$f.done"
-              echo "OK (checksum ταιριάζει): $f"; return 0
-            fi
-            [ -f "$f" ] && echo "EXISTING corrupt: $f — αντικατάσταση..."
-            for u in "$@"; do
-              wget -q --timeout=40 --tries=2 "$u" -O "$f" 2>/dev/null
-              if [ -s "$f" ] && [ "$(md5sum "$f" | cut -d' ' -f1)" = "$want" ]; then
-                touch "$f.done"
-                echo "SEEDED: $f  <-  $u"; return 0
-              fi
-            done
-            echo "SEED FAILED: $f"; rm -f "$f"; return 1
-          }
-          seed quilt-0.50.tar.gz ff5e1e041363c3af3c8fda4b968c9d1d \
-            https://download.savannah.gnu.org/releases/quilt/quilt-0.50.tar.gz \
-            http://download.savannah.nongnu.org/releases/quilt/quilt-0.50.tar.gz
-          seed gnu-config-yocto-20111111.tgz 30be385c919a25cd9522205ef49e5328 \
-            https://downloads.yoctoproject.org/releases/gnu-config/gnu-config-yocto-20111111.tgz
-          seed m4-1.4.16.tar.gz a5dfb4f2b7370e9d34293d23fd09b280 \
-            https://ftp.gnu.org/gnu/m4/m4-1.4.16.tar.gz
-          seed autoconf-2.68.tar.bz2 864d785215aa60d627c91fcb21b05b07 \
-            https://ftp.gnu.org/gnu/autoconf/autoconf-2.68.tar.bz2
-          seed pseudo-1.2.tar.bz2 a2819084bab7e991f06626d02cf55048 \
-            https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2 \
-            https://sources.openembedded.org/pseudo-1.2.tar.bz2
-          seed zlib-1.2.5.tar.bz2 be1e89810e66150f5b0327984d8625a0 \
-            https://zlib.net/fossils/zlib-1.2.5.tar.bz2 \
-            https://sources.openembedded.org/zlib-1.2.5.tar.bz2
-          seed flex-2.5.35.tar.bz2 10714e50cea54dc7a227e3eddcd44d57 \
-            https://sources.openembedded.org/flex-2.5.35.tar.bz2
-          seed mpc-0.8.2.tar.gz e98267ebd5648a39f881d66797122fb6 \
-            https://sources.openembedded.org/mpc-0.8.2.tar.gz
-          seed eglibc_2.13.orig.tar.gz 17695e0d2d84d0a0f68c652f6ad4af7c \
-            https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz
-          seed eglibc_2.12.1.orig.tar.gz 99637e034aed7ddfb6056715e69d8e19 \
-            https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz
-          seed attr-2.4.46.src.tar.gz db557c17fdfa4f785333ecda08654010 \
-            https://download.savannah.gnu.org/releases/attr/attr-2.4.46.src.tar.gz \
-            https://sources.openembedded.org/attr-2.4.46.src.tar.gz
-          seed elfutils-0.148.tar.bz2 a0bed1130135f17ad27533b0034dba8d \
-            https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2 \
-            https://sources.openembedded.org/elfutils-0.148.tar.bz2
-          seed binutils-2.22.tar.bz2 ee0f10756c84979622b992a4a61ea3f5 \
-            https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2 \
-            https://sources.openembedded.org/binutils-2.22.tar.bz2
-          seed argparse-1.2.1.tar.gz 2fbef8cb61e506c706957ab6e135840c \
-            https://sources.openembedded.org/argparse-1.2.1.tar.gz \
-            http://deb.debian.org/debian/pool/main/p/python-argparse/python-argparse_1.2.1.orig.tar.gz
-          seed libxml2-2.7.8.tar.gz 8127a65e8c3b08856093099b52599c86 \
-            https://download.gnome.org/sources/libxml2/2.7/libxml2-2.7.8.tar.gz \
-            https://sources.openembedded.org/libxml2-2.7.8.tar.gz
-          seed git-1.7.7.tar.gz 5d645884e688921e773186783b65ce33 \
-            https://www.kernel.org/pub/software/scm/git/git-1.7.7.tar.gz \
-            https://sources.openembedded.org/git-1.7.7.tar.gz
-          seed curl-7.23.1.tar.bz2 0296d3196b4bf82c896a869b38dbc5f2 \
-            https://curl.se/download/curl-7.23.1.tar.bz2 \
-            https://sources.openembedded.org/curl-7.23.1.tar.bz2
-          seed bzip2-1.0.6.tar.gz 00b516f4704d4a7cb50a1d97e6e8e15b \
-            https://sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz \
-            https://sources.openembedded.org/bzip2-1.0.6.tar.gz
-          seed base-passwd_3.5.22.tar.gz 47f22ab6b572d0133409ff6ad1fab402 \
-            http://deb.debian.org/debian/pool/main/b/base-passwd/base-passwd_3.5.22.tar.gz \
-            https://sources.openembedded.org/base-passwd_3.5.22.tar.gz
-          seed netbase_4.47.tar.gz fcd87a62f177592724a8066e3774ae97 \
-            http://deb.debian.org/debian/pool/main/n/netbase/netbase_4.47.tar.gz \
-            https://sources.openembedded.org/netbase_4.47.tar.gz
-          seed dnsmasq-2.55.tar.gz b093d7c6bc7f97ae6fd35d048529232a \
-            https://sources.openembedded.org/dnsmasq-2.55.tar.gz
-          seed dhcpcd-5.2.10.tar.bz2 c65e8cef3281eaf2e12a84bd882f5c63 \
-            https://sources.openembedded.org/dhcpcd-5.2.10.tar.bz2
-          seed popt-1.16.tar.gz 3743beefa3dd6247a73f8f7a32c14c33 \
-            https://sources.openembedded.org/popt-1.16.tar.gz
-          seed tinylogin-1.4.tar.bz2 44da0ff2b727455669890b24305e351d \
-            https://sources.openembedded.org/tinylogin-1.4.tar.bz2
-          seed wireless_tools.29.tar.gz e06c222e186f7cc013fd272d023710cb \
-            https://sources.openembedded.org/wireless_tools.29.tar.gz
-          seed shadow-4.1.4.3.tar.bz2 b8608d8294ac88974f27b20f991c0e79 \
-            https://sources.openembedded.org/shadow-4.1.4.3.tar.bz2
-          seed mklibs_0.1.33.tar.gz a462d9b802164993d247c1193116d78b \
-            http://deb.debian.org/debian/pool/main/m/mklibs/mklibs_0.1.33.tar.gz \
-            https://sources.openembedded.org/mklibs_0.1.33.tar.gz
-          seed module-init-tools-3.16.tar.bz2 bc44832c6e41707b8447e2847d2019f5 \
-            https://sources.openembedded.org/module-init-tools-3.16.tar.bz2 \
-            https://ftp.kernel.org/pub/linux/utils/kernel/module-init-tools/module-init-tools-3.16.tar.bz2
-          seed libcap-2.22.tar.bz2 ce64058bdb3f086ddbfca8ce6c919845 \
-            https://sources.openembedded.org/libcap-2.22.tar.bz2
-          seed zip30.tgz 7b74551e63f8ee6aab6fbc86676c0d37 \
-            https://sources.openembedded.org/zip30.tgz
-          seed unzip60.tgz 62b490407489521db863b523a7f86375 \
-            https://sources.openembedded.org/unzip60.tgz
-          seed pax-utils-0.2.2.tar.bz2 93a2e993ec7a83627c39ddf92988e191 \
-            https://sources.openembedded.org/pax-utils-0.2.2.tar.bz2
-          seed gdb-7.3.1.tar.gz c2795d636a9481d022608cab201be613 \
-            https://ftp.gnu.org/gnu/gdb/gdb-7.3.1.tar.gz \
-            https://sources.openembedded.org/gdb-7.3.1.tar.gz
-          seed miniupnpd-1.8.20130521.tar.gz 2b913c53fbeb562731e84b66b3ce704f \
-            https://sources.openembedded.org/miniupnpd-1.8.20130521.tar.gz
-          seed popt-1.16.tar.gz 3743beefa3dd6247a73f8f7a32c14c33 \
-            https://sources.openembedded.org/popt-1.16.tar.gz \
-            http://rpm5.org/files/popt/popt-1.16.tar.gz
-          seed lzo-2.06.tar.gz 95380bd4081f85ef08c5209f4107e9f8 \
-            https://sources.openembedded.org/lzo-2.06.tar.gz
-          seed gettext-0.18.1.1.tar.gz 3dd55b952826d2b32f51308f2f91aa89 \
-            https://ftp.gnu.org/gnu/gettext/gettext-0.18.1.1.tar.gz \
-            https://sources.openembedded.org/gettext-0.18.1.1.tar.gz
-          seed python-setuptools-0.6c11.tar.gz 7df2a529a074f613b509fb44feefe74e \
-            https://sources.openembedded.org/setuptools-0.6c11.tar.gz
-          seed sysvinit-2.88dsf.tar.bz2 6eda8a97b86e0a6f59dabbf25202aa6f \
-            https://sources.openembedded.org/sysvinit-2.88dsf.tar.bz2
-          seed expat-2.0.1.tar.gz ee8b492592568805593f81f8cdf2a04c \
-            https://sources.openembedded.org/expat-2.0.1.tar.gz \
-            https://github.com/libexpat/libexpat/releases/download/R_2_0_1/expat-2.0.1.tar.gz \
-            http://deb.debian.org/debian/pool/main/e/expat/expat_2.0.1.orig.tar.gz
-          # το pseudo-1.2 του tarball είναι εξακριβωμένο (md5+sha256) — σφράγισέ το
-          touch downloads/pseudo-1.2.tar.bz2.done
-          echo "===== FULL BUILD: mdm-image ====="
-          BB_NUMBER_THREADS=4 PARALLEL_MAKE="-j4" timeout 12000 bitbake -k mdm-image > "$WSDIR/bitbake-mdm.log" 2>&1
-          echo "mdm-image exit=$?"
-          tail -40 "$WSDIR/bitbake-mdm.log"
-          echo "===== RECOVERY IMAGE ====="
-          timeout 2400 bitbake mdm-recovery-image > "$WSDIR/bitbake-recovery.log" 2>&1
-          echo "recovery exit=$?"
-          tail -15 "$WSDIR/bitbake-recovery.log"
-          echo "===== FAILURE LOGS ====="
-          mkdir -p "$WSDIR/faillogs"
-          grep -rl "Function failed" tmp-eglibc/work/*/*/temp/ 2>/dev/null | head -5 | xargs -r -I{} cp -L {} "$WSDIR/faillogs/" 2>/dev/null
-          ls -la "$WSDIR/faillogs/" 2>/dev/null
-          echo "===== XGCC SANITY TEST ====="
-          XG=$(find tmp-eglibc/work/*/*/gcc-4.6.4/build.* -maxdepth 3 -name xgcc -type f 2>/dev/null | head -1)
-          echo "xgcc: $XG"
-          if [ -n "$XG" ] && [ -x "$XG" ]; then
-            echo 'int main(){return 0;}' > /tmp/t.c
-            echo "--- test compile ---"
-            "$XG" -v -c /tmp/t.c -o /tmp/t.o 2>&1 | tail -20
-            RC=$?
-            echo "xgcc exit: $RC"
-            ls -la /tmp/t.o 2>/dev/null
-            echo "--- test preprocess ---"
-            "$XG" -E /tmp/t.c 2>&1 | tail -5
+          if grep -q "^ERROR" ../parse.log; then
+            echo "PARSE FAILED"
+            tail -30 ../parse.log
           else
-            echo "xgcc NOT FOUND — gcc-cross-initial may not have run"
+            bitbake -k mdm-image > ../bitbake-mdm.log 2>&1
+            echo "mdm-image exit=$?"
+            tail -30 ../bitbake-mdm.log
+            echo "===== DEPLOYED IMAGES ====="
+            find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
           fi
-          echo "===== END XGCC ====="
-          echo "===== DEPLOYED IMAGES ====="
-          find tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
-          exit 0
 
       - name: Upload logs and images
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: m7350-v3-build-output
           path: |
-            init.log
-            parse.log
-            bblayers-generated.conf
-            bitbake-mdm.log
-            bitbake-recovery.log
-            py2-*.log
-            tar-errors.txt
-            faillogs/**
-            src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
+            src/apps_proc/oe-core/parse.log
+            src/apps_proc/oe-core/bitbake-mdm.log
+            src/apps_proc/oe-core/init.log
+            src/apps_proc/oe-core/build/downloads/*.done
           if-no-files-found: warn
           retention-days: 30
