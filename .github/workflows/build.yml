@@ -17,30 +17,90 @@ jobs:
           apt-get update
           apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git python-minimal autoconf automake libtool intltool libglib2.0-dev openssh-client sudo libxml2-dev pkg-config help2man make gcc g++
           useradd -m builder
-          git config --global user.email builder@localhost || true
+          ln -sf /bin/bash /bin/sh
 
-      - name: Download GPL source
+      - name: Download and extract GPL source
         shell: bash
         run: |
-          wget --tries=2 "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
+          wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
           echo "0337a736e30cb11f83161bc15d53fac5  gpl.tar.gz" | md5sum -c -
           mkdir -p src
           tar -xzf gpl.tar.gz -C src || true
           echo "files: $(find src -type f | wc -l)"
           chown -R builder:builder /__w/m7350/m7350
 
-      - name: Build with TP-Link procedure
+      - name: Apply build system fixes
         shell: bash
         run: |
-          su - builder -c "
+          cd src/apps_proc/oe-core
+          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
+          echo '# stub' > meta-msm/classes/tp-link-common.bbclass
+          sed -i '42,52d' meta-msm/conf/site.conf 2>/dev/null
+          for f in staging package libc-package sourcepkg; do sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/classes/$f.bbclass; done
+          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/lib/oe/path.py
+          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
+          sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' meta-msm/recipes/alsa-intf/alsa-intf_git.bb
+          sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' meta-msm/recipes/loc-api/loc-api_git.bb
+          sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' meta-msm/recipes/hostap/hostap_git.bb
+          sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
+          sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
+          sed -i '/kernel-tests \\/d' meta-msm/recipes/images/mdm-bootimg.inc
+          chown -R builder:builder /__w/m7350/m7350
+
+      - name: Write build script
+        shell: bash
+        run: |
+          cat > /tmp/build.sh << 'SCRIPT'
           cd /__w/m7350/m7350/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
           export MACHINE=mdm9625
           bitbake mdm-image
-          echo mdm-image exit=\$?
-          echo ===== DEPLOYED IMAGES =====
-          find \${TOPDIR}/tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
-          "
+          echo "mdm-image exit=$?"
+          find ${TOPDIR}/tmp-eglibc/deploy/images -type f 2>/dev/null | head -50
+          SCRIPT
+          chown builder:builder /tmp/build.sh
+          chmod +x /tmp/build.sh
+
+      - name: Apply recipe-level fixes
+        shell: bash
+        run: |
+          cd src/apps_proc/oe-core
+          EGD=meta/recipes-core/eglibc
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http \\\\|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\\\|" "$EGD/eglibc_2.13.bb"
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' "$EGD/eglibc_2.13.bb"
+          sed -i '/^PR_append = "+svnr/d' "$EGD/eglibc_2.13.bb"
+          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> "$EGD/eglibc_2.13.bb"
+          GCCD=meta/recipes-devtools/gcc
+          sed -i 's|^PV = .*|PV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^BINV = .*|BINV = "4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^S = .*|S = "${TMPDIR}/work-shared/gcc-${PV}-${PR}/gcc-4.6.4"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^B = .*|B = "${WORKDIR}/gcc-4.6.4/build.${HOST_SYS}.${TARGET_SYS}"|' "$GCCD/gcc-4.6.inc"
+          sed -i 's|^SRC_URI = "svn://gcc.gnu.org/svn/gcc/branches;module=${BRANCH};proto=http \\|SRC_URI = "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2;name=gcccore \\|' "$GCCD/gcc-4.6.inc"
+          sed -i '/file:\/\/.*uclibc/d; /gcc-flags-for-build.patch/d; /^.*file:\/\/.*\.patch/d' "$GCCD/gcc-4.6.inc"
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> "$GCCD/gcc-4.6.inc"
+          echo 'CFLAGS_append = " -fno-strict-aliasing"' >> "$GCCD/gcc-4.6.inc"
+          echo 'do_compile() {' > "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          sed -i '42,52d' meta-msm/conf/site.conf 2>/dev/null
+          for f in staging package libc-package sourcepkg; do sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/classes/$f.bbclass; done
+          sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' meta/lib/oe/path.py
+          sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' meta-msm/recipes/samba/samba_3.6.22.bb
+          echo '# stub' > meta-msm/classes/tp-link-common.bbclass
+          find meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \; 2>/dev/null
+          sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' meta/recipes-devtools/elfutils/elfutils_0.148.bb
+          sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' meta/recipes-devtools/git/git_1.7.7.bb 2>/dev/null
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> meta/recipes-devtools/binutils/binutils_2.22.bb
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> meta/recipes-devtools/binutils/binutils-cross_2.22.bb
+          NCD=meta/recipes-core/ncurses
+          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> "$NCD/ncurses_5.9.bb"
+          echo '# stub' > meta-msm/classes/tp-link-common.bbclass
+          chown -R builder:builder /__w/m7350/m7350
+
+      - name: Run TP-Link build
+        shell: bash
+        run: |
+          su - builder -c "/tmp/build.sh"
 
       - name: Upload logs and images
         if: always()
@@ -48,7 +108,7 @@ jobs:
         with:
           name: m7350-v3-build-output
           path: |
-            init.log
+            /tmp/build.log
             src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
