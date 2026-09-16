@@ -104,6 +104,28 @@ jobs:
           echo '# stub' > meta-msm/classes/tp-link-common.bbclass
           chown -R builder:builder /__w/m7350/m7350
 
+      - name: Pre-download sources
+        shell: bash
+        run: |
+          DL=src/apps_proc/oe-core/build/downloads
+          mkdir -p $DL
+          for pair in \
+            "pseudo-1.2.tar.bz2 https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" \
+            "gcc-core-4.6.4.tar.bz2 https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" \
+            "gcc-g++-4.6.4.tar.bz2 https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" \
+            "eglibc_2.13.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" \
+            "eglibc_2.12.1.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" \
+            "binutils-2.22.tar.bz2 https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2"; do
+            fname=$(echo $pair | cut -d' ' -f1)
+            url=$(echo $pair | cut -d' ' -f2)
+            if [ ! -f "$DL/$fname.done" ]; then
+              echo "Pre-downloading $fname"
+              wget -q "$url" -O "$DL/$fname" || true
+              touch "$DL/$fname.done"
+            fi
+          done
+          chown -R builder:builder $DL
+
       - name: Run TP-Link build
         shell: bash
         run: |
