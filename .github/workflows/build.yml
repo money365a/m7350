@@ -71,6 +71,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
+          set +e
           # Pre-download critical sources that have dead URLs
           DL=/home/builder/src/apps_proc/oe-core/build/downloads
           mkdir -p $DL
