@@ -84,7 +84,9 @@ jobs:
           echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> "$GCCD/gcc-crosssdk-initial.inc"
           echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> "$GCCD/gcc-cross_4.6.bb"
           echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> "$GCCD/gcc-runtime_4.6.bb"
-          echo 'do_compile() {' > "$GCCD/gcc-cross-initial_4.6.bb"
+          echo 'require gcc-cross-initial.inc' > "$GCCD/gcc-cross-initial_4.6.bb"
+          echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> "$GCCD/gcc-cross-initial_4.6.bb"
+          echo 'do_compile() {' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '    oe_runmake all-gcc' >> "$GCCD/gcc-cross-initial_4.6.bb"
           echo '}' >> "$GCCD/gcc-cross-initial_4.6.bb"
           sed -i '42,52d' meta-msm/conf/site.conf 2>/dev/null
