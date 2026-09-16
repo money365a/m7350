@@ -16,8 +16,10 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y build-essential gcc-multilib g++-multilib libncurses5-dev flex bison gawk gettext texinfo texi2html unzip rsync cpio file wget curl subversion libffi-dev libreadline-dev libbz2-dev libsqlite3-dev diffstat chrpath zlib1g-dev lib32z1 lib32stdc++6 xz-utils bzip2 git autoconf automake libtool intltool libglib2.0-dev sudo libxml2-dev pkg-config help2man make gawk python2.7
+          ln -sf /usr/bin/python2.7 /usr/bin/python
+          ln -sf /bin/bash /bin/sh
 
-      - name: Fetch and extract GPL source
+      - name: Download and extract GPL
         shell: bash
         run: |
           wget "https://static.tp-link.com/resources/gpl/M7350v3_en_gpl.tar.gz" -O gpl.tar.gz
@@ -32,75 +34,34 @@ jobs:
           set +e
           OE=$GITHUB_WORKSPACE/src/apps_proc/oe-core
 
-          # Remove dead mirrors from site.conf
           sed -i '42,52d' $OE/meta-msm/conf/site.conf
-
-          # Fix tar -ps
           for f in staging package libc-package sourcepkg; do
             sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/classes/$f.bbclass
           done
           sed -i 's/ -ps \. | tar -xf -/ . | tar -xpf -/' $OE/meta/lib/oe/path.py
-
-          # Fix samba PRODUCT_MEMORY (DDR_SIZE not in GPL)
           sed -i 's/^PRODUCT_MEMORY .*/PRODUCT_MEMORY = ""/' $OE/meta-msm/recipes/samba/samba_3.6.22.bb
-
-          # Create tp-link-common.bbclass stub
-          echo '# stub: missing from GPL' > $OE/meta-msm/classes/tp-link-common.bbclass
-
-          # Remove deps on missing packages
+          echo '# stub' > $OE/meta-msm/classes/tp-link-common.bbclass
           sed -i 's/^DEPENDS = "acdbloader glib-2.0"/DEPENDS = "glib-2.0"/' $OE/meta-msm/recipes/alsa-intf/alsa-intf_git.bb
           sed -i 's/^DEPENDS = "qmi-framework glib-2.0 libhardware"/DEPENDS = "glib-2.0 libhardware"/' $OE/meta-msm/recipes/loc-api/loc-api_git.bb
           sed -i 's/^DEPENDS = "openssl qmi"/DEPENDS = "openssl"/' $OE/meta-msm/recipes/hostap/hostap_git.bb
           sed -i 's/^DEPENDS += "qmi"/DEPENDS += ""/' $OE/meta-msm/recipes/wpa-supplicant/wpa-supplicant-ath6kl_git.bb
           sed -i 's/^DEPENDS = "data"/DEPENDS = ""/' $OE/meta-msm/recipes/miniupnpd/miniupnpd_1.8.20130521.bb
           sed -i '/kernel-tests \\/d' $OE/meta-msm/recipes/images/mdm-bootimg.inc
-
-          # ncurses: skip c++
-          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
-
-          # binutils: skip docs
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils_2.22.bb
-          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils-cross_2.22.bb
-
-          # gettext: gets fix
-          find $OE/meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
-
-          # elfutils: fix dead URL
           sed -i 's|https://fedorahosted.org/releases/e/l/elfutils/elfutils-${PV}.tar.bz2|https://sourceware.org/elfutils/0.148/elfutils-0.148.tar.bz2|' $OE/meta/recipes-devtools/elfutils/elfutils_0.148.bb
-
-          # git: fix dead URL
           sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta/recipes-devtools/git/git_1.7.7.bb
           sed -i 's|http://git-core.googlecode.com/files/git-${PV}.tar.gz|https://www.kernel.org/pub/software/scm/git/git-${PV}.tar.gz|' $OE/meta-msm/recipes/git/git-native_1.7.7.bb
+          find $OE/meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils_2.22.bb
+          echo 'EXTRA_OEMAKE_append = " MAKEINFO=true"' >> $OE/meta/recipes-devtools/binutils/binutils-cross_2.22.bb
+          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
+          echo '# stub' > $OE/meta-msm/classes/tp-link-common.bbclass
 
-          # Pre-download critical sources with .done stamps
-          DL=$OE/build/downloads
-          mkdir -p $DL
-          for pair in \
-            "pseudo-1.2.tar.bz2 https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" \
-            "gcc-core-4.6.4.tar.bz2 https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" \
-            "gcc-g++-4.6.4.tar.bz2 https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" \
-            "eglibc_2.13.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" \
-            "eglibc_2.12.1.orig.tar.gz https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" \
-            "binutils-2.22.tar.bz2 https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2"; do
-            fname=$(echo $pair | cut -d' ' -f1)
-            url=$(echo $pair | cut -d' ' -f2)
-            if [ ! -f "$DL/$fname.done" ]; then
-              wget -q "$url" -O "$DL/$fname" || true
-              touch "$DL/$fname.done"
-            fi
-          done
-
-      - name: Write gcc-4.6.inc recipe
-        shell: bash
-        run: |
-          OE=$GITHUB_WORKSPACE/src/apps_proc/oe-core
+          # gcc 4.6.4 recipe rewrite
           GCCD=$OE/meta/recipes-devtools/gcc
-          # Write a clean gcc-4.6.inc without SVN references
           echo 'require gcc-common.inc' > $GCCD/gcc-4.6.inc
           echo 'PR = "r22"' >> $GCCD/gcc-4.6.inc
           echo 'PV = "4.6.4"' >> $GCCD/gcc-4.6.inc
           echo 'BINV = "4.6.4"' >> $GCCD/gcc-4.6.inc
-          echo 'FILESPATH = "${@base_set_filespath([ '${FILE_DIRNAME}/gcc-4.6' ], d)}"' >> $GCCD/gcc-4.6.inc
           echo 'DEPENDS =+ "mpfr gmp libmpc"' >> $GCCD/gcc-4.6.inc
           echo 'NATIVEDEPS = "mpfr-native gmp-native libmpc-native"' >> $GCCD/gcc-4.6.inc
           echo 'LICENSE = "GPL-3.0-with-GCC-exception & GPLv3"' >> $GCCD/gcc-4.6.inc
@@ -116,9 +77,43 @@ jobs:
           echo '    oe_runmake all-gcc' >> $GCCD/gcc-cross-initial_4.6.bb
           echo '}' >> $GCCD/gcc-cross-initial_4.6.bb
 
-      - name: Build with TP-Link procedure
+          # eglibc launchpad tarballs
+          EGD=$OE/meta/recipes-core/eglibc
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http \\\\|https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz \\\\|" $EGD/eglibc_2.13.bb
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|S = "${WORKDIR}/eglibc-2.13"|' $EGD/eglibc_2.13.bb
+          sed -i '/^PR_append = "+svnr/d' $EGD/eglibc_2.13.bb
+          echo 'SRC_URI[md5sum] = "17695e0d2d84d0a0f68c652f6ad4af7c"' >> $EGD/eglibc_2.13.bb
+          sed -i "s|svn://www.eglibc.org/svn/branches/;module=\${EGLIBC_BRANCH};proto=http |https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz |" $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|^S = "${WORKDIR}/${EGLIBC_BRANCH}/localedef"|S = "${WORKDIR}/eglibc-2.12.1/localedef"|' $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|^LIC_DIR = "${WORKDIR}/${EGLIBC_BRANCH}/libc"|LIC_DIR = "${WORKDIR}/eglibc-2.12.1"|' $EGD/cross-localedef-native_2.13.bb
+          sed -i 's|--with-glibc=${WORKDIR}/${EGLIBC_BRANCH}/libc|--with-glibc=${WORKDIR}/eglibc-2.12.1|' $EGD/cross-localedef-native_2.13.bb
+
+          # ncurses
+          echo 'EXTRA_OECONF += "--without-cxx-binding"' >> $OE/meta/recipes-core/ncurses/ncurses_5.9.bb
+
+          # gettext gets fix
+          find $OE/meta/recipes-core/gettext -name "stdio.in.h" -exec sed -i '/_GL_WARN_ON_USE (gets/d' {} \;
+
+          # Pre-download critical sources
+          DL=$OE/build/downloads
+          mkdir -p $DL
+          wget -q "https://downloads.yoctoproject.org/releases/pseudo/pseudo-1.2.tar.bz2" -O $DL/pseudo-1.2.tar.bz2
+          touch $DL/pseudo-1.2.tar.bz2.done
+          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-core-4.6.4.tar.bz2" -O $DL/gcc-core-4.6.4.tar.bz2
+          touch $DL/gcc-core-4.6.4.tar.bz2.done
+          wget -q "https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-g++-4.6.4.tar.bz2" -O $DL/gcc-g++-4.6.4.tar.bz2
+          touch $DL/gcc-g++-4.6.4.tar.bz2.done
+          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.13.orig.tar.gz" -O $DL/eglibc_2.13.orig.tar.gz
+          touch $DL/eglibc_2.13.orig.tar.gz.done
+          wget -q "https://launchpad.net/ubuntu/+archive/primary/+files/eglibc_2.12.1.orig.tar.gz" -O $DL/eglibc_2.12.1.orig.tar.gz
+          touch $DL/eglibc_2.12.1.orig.tar.gz.done
+          wget -q "https://ftp.gnu.org/gnu/binutils/binutils-2.22.tar.bz2" -O $DL/binutils-2.22.tar.bz2
+          touch $DL/binutils-2.22.tar.bz2.done
+
+      - name: Build
         shell: bash
         run: |
+          set +e
           cd $GITHUB_WORKSPACE/src/apps_proc/oe-core
           . build/conf/set_bb_env.sh
           export MACHINE=mdm9625
@@ -148,6 +143,7 @@ jobs:
           path: |
             parse.log
             bitbake-mdm.log
+            init.log
             src/apps_proc/oe-core/build/tmp-eglibc/deploy/images/**
           if-no-files-found: warn
           retention-days: 30
